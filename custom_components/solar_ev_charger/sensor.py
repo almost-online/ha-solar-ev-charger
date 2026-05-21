@@ -1,6 +1,8 @@
 """Sensor platform for Solar EV Charger integration."""
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -37,3 +39,8 @@ class SolarEVChargerStatusSensor(CoordinatorEntity, SensorEntity):
         if not self.coordinator.solar_only_mode:
             return "Manual"
         return "Solar Only"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        return self.coordinator.data

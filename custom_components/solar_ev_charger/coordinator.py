@@ -90,13 +90,20 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
 
     async def _async_handle_state_change(self, event):
         """Handle state changes of tracked entities."""
+        self.async_set_updated_data(await self._async_update_data())
         await self.calculate_and_set_current()
 
     async def _async_update_data(self):
-        """Update data via library."""
-        # This is where we could poll if needed, 
-        # but we mainly rely on state changes.
-        return {}
+        """Update data for the coordinator."""
+        return {
+            "solar": self.get_state_val(self.entities["solar"]),
+            "consumption": self.get_state_val(self.entities["consumption"]),
+            "grid": self.get_state_val(self.entities["grid"]),
+            "battery_power": self.get_state_val(self.entities["battery_power"]),
+            "battery_soc": self.get_state_val(self.entities["battery_soc"]),
+            "ev_power": self.get_state_val(self.entities["ev_power"]),
+            "voltage": self.get_state_val(self.entities["voltage_entity"]) or float(self.default_voltage),
+        }
 
     def get_state_val(self, entity_id: str) -> float:
         """Get float value of entity state."""

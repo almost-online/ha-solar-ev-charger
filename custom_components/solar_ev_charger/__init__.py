@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import logging
 
+import os
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.components.http import StaticPathConfig
 
 from .const import DOMAIN
 from .coordinator import SolarEVChargerCoordinator
@@ -21,6 +23,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
+
+    # Register static path for custom card
+    await hass.http.async_register_static_path(
+        f"/{DOMAIN}/www",
+        hass.config.path(f"custom_components/{DOMAIN}/www"),
+        cache_headers=False
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

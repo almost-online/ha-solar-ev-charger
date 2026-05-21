@@ -55,10 +55,20 @@ You are an AI agent tasked with maintaining, improving, or troubleshooting the "
 - `switch.py`: Provides switches to Enable/Disable the integration and toggle Solar Only mode. Associated with the integration device.
 - `manifest.json`: Integration metadata.
 
+## UI Component (Custom Card)
+- **Custom Card**: `solar-ev-charger-card.js`
+- **Location**: `custom_components/solar_ev_charger/www/`
+- **Registration**: Registered as a static path `/{DOMAIN}/www` in `__init__.py`.
+- **Usage**:
+  - The card uses the `Solar EV Charger Status` sensor entity.
+  - The sensor's `extra_state_attributes` provide the real-time power data for the diagram.
+  - Data points: `solar`, `grid`, `consumption`, `battery_power`, `battery_soc`, `ev_power`.
+
 ## Instructions for AI Tasks
 1. **Adding Features**:
    - If adding support for 3-phase charging, update the `calculate_and_set_current` logic in `coordinator.py` and potentially add a config option in `config_flow.py`.
    - If adding a minimum SOC requirement for the battery, update `coordinator.py`.
+   - To improve the UI card, edit `custom_components/solar_ev_charger/www/solar-ev-charger-card.js`.
 2. **Bug Fixing**:
    - Check the unit of measurement for power entities (assumed Watts).
    - Ensure `voltage` and `phases` assumptions match the user's hardware.
