@@ -7,7 +7,6 @@ import os
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.components.http import StaticPathConfig
 
 from .const import DOMAIN
 from .coordinator import SolarEVChargerCoordinator
