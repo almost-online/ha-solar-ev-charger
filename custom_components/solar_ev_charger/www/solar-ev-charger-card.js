@@ -147,3 +147,83 @@ class SolarEVChargerCard extends HTMLElement {
 }
 
 customElements.define("solar-ev-charger-card", SolarEVChargerCard);
+
+class SolarEVChargerDashboardStrategy extends HTMLElement {
+  static getCreateSuggestions(hass) {
+    return {
+      title: "Solar EV Charger",
+      icon: "mdi:ev-station",
+    };
+  }
+
+  static async generate(config, hass) {
+    // Find the status sensor from our integration
+    const statusSensor = Object.keys(hass.states).find(
+      (entityId) => 
+        entityId.startsWith("sensor.solar_ev_charger") && 
+        hass.states[entityId].attributes.attribution === undefined // Simple check
+    ) || "sensor.solar_ev_charger_status";
+
+    const dashboard = {
+      title: config.title || "Solar EV Charger",
+      views: [
+        {
+          title: "Overview",
+          icon: "mdi:home-lightning-bolt",
+          cards: [
+            {
+              type: "custom:solar-ev-charger-card",
+              entity: statusSensor
+            },
+            {
+              type: "grid",
+              columns: 2,
+              square: false,
+              cards: [
+                {
+                  type: "button",
+                  entity: "switch.solar_ev_charger_enabled",
+                  name: "Enable Control"
+                },
+                {
+                  type: "button",
+                  entity: "switch.solar_ev_charger_solar_only_mode",
+                  name: "Solar Only"
+                }
+              ]
+            },
+            {
+                type: "entities",
+                title: "Control Settings",
+                entities: [
+                    {
+                        entity: "number.ev_charger_current_limit", // This is just an example, it should be the control entity
+                        name: "Manual Current Limit"
+                    }
+                ]
+            }
+          ]
+        }
+      ]
+    };
+
+    // Try to find the actual control entity from sensor attributes if possible
+    const state = hass.states[statusSensor];
+    if (state && state.attributes) {
+        // We could potentially add more cards here based on attributes
+    }
+
+    return dashboard;
+  }
+}
+
+customElements.define("solar-ev-charger-strategy", SolarEVChargerDashboardStrategy);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "solar-ev-charger-card",
+  name: "Solar EV Charger Flow Card",
+  description: "A card to visualize solar energy flow to your EV.",
+  preview: true,
+  documentationURL: "https://github.com/almost-online/ha-solar-ev-charger",
+});

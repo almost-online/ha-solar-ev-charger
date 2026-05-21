@@ -1,0 +1,15 @@
+blueprint:
+  name: Solar EV Charger Dashboard
+  domain: solar_ev_charger
+  input:
+    my_sensor:
+      name: Status Sensor
+      selector:
+        entity:
+          integration: solar_ev_charger
+dashboard:
+  views:
+    - title: EV Charger
+      cards:
+        - type: custom:solar-ev-charger-card
+          entity: !input my_sensor

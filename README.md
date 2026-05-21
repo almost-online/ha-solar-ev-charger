@@ -15,7 +15,10 @@ This Home Assistant integration allows you to automatically control your EV char
 This integration includes a custom Lovelace card to visualize the energy flow.
 
 ### Manual Setup
-To use the card, you can use the built-in Dashboard Blueprint or add it manually.
+To use the card, you can use the automated dashboard creation, the built-in Dashboard Blueprint, or add it manually.
+
+#### Automated Dashboard (Recommended)
+When adding a new dashboard in Home Assistant, select "Solar EV Charger" as the strategy. This will automatically create a pre-configured dashboard with the energy flow card and control switches.
 
 #### Dashboard Blueprint
 If your Home Assistant version supports Dashboard Blueprints, you can import the pre-made "Solar EV Charger Dashboard" which automatically configures the card for you.

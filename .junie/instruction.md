@@ -66,6 +66,7 @@ You are an AI agent tasked with maintaining, improving, or troubleshooting the "
   - The sensor's `extra_state_attributes` provide the real-time power data for the diagram.
   - Data points: `solar`, `grid`, `consumption`, `battery_power`, `battery_soc`, `ev_power`.
 - **Dashboard Blueprint**: `dashboard.yaml` provides a pre-made dashboard configuration using the custom card.
+- **Dashboard Strategy**: `solar-ev-charger-card.js` includes a `SolarEVChargerDashboardStrategy` that allows Home Assistant to auto-generate a full dashboard for the integration.
 
 ## Instructions for AI Tasks
 1. **Adding Features**:
