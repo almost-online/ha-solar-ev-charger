@@ -58,11 +58,14 @@ You are an AI agent tasked with maintaining, improving, or troubleshooting the "
 ## UI Component (Custom Card)
 - **Custom Card**: `solar-ev-charger-card.js`
 - **Location**: `custom_components/solar_ev_charger/www/`
-- **Registration**: Registered as a static path `/{DOMAIN}/www` in `__init__.py`.
+- **Registration**: 
+  - Registered as a static path `/{DOMAIN}/www` in `__init__.py`.
+  - Programmatically registered as a Lovelace resource in `async_setup_entry`.
 - **Usage**:
   - The card uses the `Solar EV Charger Status` sensor entity.
   - The sensor's `extra_state_attributes` provide the real-time power data for the diagram.
   - Data points: `solar`, `grid`, `consumption`, `battery_power`, `battery_soc`, `ev_power`.
+- **Dashboard Blueprint**: `dashboard.yaml` provides a pre-made dashboard configuration using the custom card.
 
 ## Instructions for AI Tasks
 1. **Adding Features**:

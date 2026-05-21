@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.lovelace import resources
 
 from .const import DOMAIN
 from .coordinator import SolarEVChargerCoordinator
@@ -33,6 +34,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     ])
     _LOGGER.debug("Registered static path for custom card at /%s/www", DOMAIN)
+
+    # Programmatically register the frontend resource
+    url = f"/{DOMAIN}/www/solar-ev-charger-card.js"
+    resource_manager = await resources.async_get_or_create(hass)
+    if not any(resource["url"] == url for resource in resource_manager.async_items()):
+        await resource_manager.async_create_item({"res_type": "module", "url": url})
+        _LOGGER.debug("Registered frontend resource: %s", url)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
