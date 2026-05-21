@@ -1,0 +1,19 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "solar_power_entity": "Solar Power Entity",
+          "consumption_power_entity": "Consumption Power Entity",
+          "grid_power_entity": "Grid Power Entity (Export is positive)",
+          "battery_power_entity": "Battery Power Entity (Charging is positive)",
+          "battery_soc_entity": "Battery SOC Entity",
+          "ev_charger_power_entity": "EV Charger Power Entity",
+          "ev_charger_control_current_entity": "EV Charger Control Current Entity (Number)",
+          "ev_charger_max_current": "Max Current for Charging (Amps)"
+        },
+        "description": "Configure the entities for Solar EV Charging control."
+      }
+    }
+  }
+}
