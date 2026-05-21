@@ -1,5 +1,4 @@
 {
   "name": "Solar EV Charger",
-  "render_readme": true,
-  "zip_release": true
+  "render_readme": true
 }
