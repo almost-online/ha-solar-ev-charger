@@ -87,7 +87,20 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_create_entry(title="Solar EV Charger", data=user_input)
 
-
-    async def async_step_reconfigure(self, user_input=None):
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Handle the reconfigure step."""
-        return await self.async_step_user()
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+
+        if user_input is not None:
+            return self.async_update_reload_and_abort(
+                entry, data={**entry.data, **user_input}
+            )
+
+        schema = self.add_suggested_values_to_schema(STEP_USER_DATA_SCHEMA, entry.data)
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=schema,
+        )
