@@ -38,10 +38,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Programmatically register the frontend resource
     url = f"/{DOMAIN}/www/solar-ev-charger-card.js"
     
-    # Resources are managed in hass.data["lovelace"]["resources"]
+    # Resources are managed in hass.data["lovelace"]
     lovelace_data = hass.data.get("lovelace")
-    if lovelace_data and "resources" in lovelace_data:
-        resource_manager = lovelace_data["resources"]
+    # In some versions, lovelace_data is an object, not a dict
+    resource_manager = getattr(lovelace_data, "resources", None)
+    
+    if resource_manager:
         # Ensure resources are loaded
         if not resource_manager.loaded:
             await resource_manager.async_load()

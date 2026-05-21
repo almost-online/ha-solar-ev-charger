@@ -60,7 +60,7 @@ You are an AI agent tasked with maintaining, improving, or troubleshooting the "
 - **Location**: `custom_components/solar_ev_charger/www/`
 - **Registration**: 
   - Registered as a static path `/{DOMAIN}/www` in `__init__.py`.
-  - Programmatically registered as a Lovelace resource in `async_setup_entry` via `hass.data["lovelace"]["resources"]`.
+  - Programmatically registered as a Lovelace resource in `async_setup_entry` via `getattr(hass.data.get("lovelace"), "resources", None)`.
 - **Usage**:
   - The card uses the `Solar EV Charger Status` sensor entity.
   - The sensor's `extra_state_attributes` provide the real-time power data for the diagram.
