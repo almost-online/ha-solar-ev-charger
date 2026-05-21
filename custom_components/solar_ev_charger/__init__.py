@@ -24,11 +24,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
     # Register static path for custom card
-    await hass.http.async_register_static_path(
+    hass.http.register_static_path(
         f"/{DOMAIN}/www",
         hass.config.path(f"custom_components/{DOMAIN}/www"),
         cache_headers=False
     )
+    _LOGGER.debug("Registered static path for custom card at /%s/www", DOMAIN)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
