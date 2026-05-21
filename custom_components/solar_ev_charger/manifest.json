@@ -1,9 +1,11 @@
 {
   "domain": "solar_ev_charger",
   "name": "Solar EV Charger",
-  "codeowners": ["@almost_online"],
+  "codeowners": ["@almost-online"],
   "config_flow": true,
-  "documentation": "https://github.com/almost-online/ha-solar-ev-charger/",
+  "documentation": "https://github.com/almost-online/ha-solar-ev-charger",
+  "issue_tracker": "https://github.com/almost-online/ha-solar-ev-charger/issues",
   "iot_class": "local_polling",
-  "version": "v0.0.1-beta"
+  "dependencies": [],
+  "version": "1.0.0"
 }
