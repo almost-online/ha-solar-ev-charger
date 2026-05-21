@@ -1,7 +1,7 @@
 {
   "domain": "solar_ev_charger",
   "name": "Solar EV Charger",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "documentation": "https://github.com/almost-online/ha-solar-ev-charger",
   "codeowners": ["@almost-online"],
   "config_flow": true,

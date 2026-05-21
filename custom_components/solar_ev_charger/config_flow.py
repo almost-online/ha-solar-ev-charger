@@ -86,3 +86,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         return self.async_create_entry(title="Solar EV Charger", data=user_input)
+
+
+    async def async_step_reconfigure(self, user_input=None):
+        """Handle the reconfigure step."""
+        return await self.async_step_user()
