@@ -21,6 +21,13 @@ from .const import (
     CONF_EV_CHARGER_POWER_ENTITY,
     CONF_EV_CHARGER_CONTROL_CURRENT_ENTITY,
     CONF_EV_CHARGER_MAX_CURRENT,
+    CONF_EV_CHARGER_VOLTAGE,
+    CONF_EV_CHARGER_VOLTAGE_ENTITY,
+    CONF_MIN_BATTERY_SOC,
+    CONF_SMOOTHING_PERIOD,
+    DEFAULT_VOLTAGE,
+    DEFAULT_MIN_BATTERY_SOC,
+    DEFAULT_SMOOTHING_PERIOD,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,6 +56,16 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
             selector.EntitySelectorConfig(domain="number")
         ),
         vol.Required(CONF_EV_CHARGER_MAX_CURRENT, default=16): vol.Coerce(int),
+        vol.Optional(CONF_EV_CHARGER_VOLTAGE_ENTITY): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="sensor", device_class="voltage")
+        ),
+        vol.Optional(CONF_EV_CHARGER_VOLTAGE, default=DEFAULT_VOLTAGE): vol.Coerce(int),
+        vol.Optional(CONF_MIN_BATTERY_SOC, default=DEFAULT_MIN_BATTERY_SOC): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=100)
+        ),
+        vol.Optional(CONF_SMOOTHING_PERIOD, default=DEFAULT_SMOOTHING_PERIOD): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=300)
+        ),
     }
 )
 

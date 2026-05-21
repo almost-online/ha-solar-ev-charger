@@ -32,6 +32,7 @@ class SolarEVChargerEnableSwitch(CoordinatorEntity, SwitchEntity):
         super().__init__(coordinator)
         self._attr_name = "Solar EV Charger Enabled"
         self._attr_unique_id = f"{coordinator.entry.entry_id}_enabled"
+        self._attr_device_info = coordinator.device_info
 
     @property
     def is_on(self) -> bool:
@@ -56,6 +57,7 @@ class SolarEVChargerSolarOnlySwitch(CoordinatorEntity, SwitchEntity):
         super().__init__(coordinator)
         self._attr_name = "Solar EV Charger Solar Only Mode"
         self._attr_unique_id = f"{coordinator.entry.entry_id}_solar_only"
+        self._attr_device_info = coordinator.device_info
 
     @property
     def is_on(self) -> bool:

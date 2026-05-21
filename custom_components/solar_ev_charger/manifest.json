@@ -3,7 +3,7 @@
   "name": "Solar EV Charger",
   "codeowners": ["@sergii_andrusenko"],
   "config_flow": true,
-  "documentation": "https://github.com/sergii-andrusenko/ha-solar-ev-charger",
+  "documentation": "https://github.com/almost-online/ha-solar-ev-charger",
   "iot_class": "local_polling",
   "version": "1.0.0"
 }

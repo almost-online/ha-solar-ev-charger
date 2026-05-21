@@ -10,7 +10,11 @@
           "battery_soc_entity": "Battery SOC Entity",
           "ev_charger_power_entity": "EV Charger Power Entity",
           "ev_charger_control_current_entity": "EV Charger Control Current Entity (Number)",
-          "ev_charger_max_current": "Max Current for Charging (Amps)"
+          "ev_charger_max_current": "Max Current for Charging (Amps)",
+          "ev_charger_voltage_entity": "EV Charger Voltage Entity (Optional)",
+          "ev_charger_voltage": "EV Charger Voltage (Raw value, default 230)",
+          "min_battery_soc": "Minimum Battery SOC to start EV charging (%)",
+          "smoothing_period": "Smoothing Period - Seconds to wait between charging speed changes"
         },
         "description": "Configure the entities for Solar EV Charging control."
       }

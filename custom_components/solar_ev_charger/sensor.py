@@ -27,6 +27,7 @@ class SolarEVChargerStatusSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         self._attr_name = "Solar EV Charger Status"
         self._attr_unique_id = f"{coordinator.entry.entry_id}_status"
+        self._attr_device_info = coordinator.device_info
 
     @property
     def native_value(self) -> str:
