@@ -37,10 +37,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Programmatically register the frontend resource
     url = f"/{DOMAIN}/www/solar-ev-charger-card.js"
-    resource_manager = await resources.async_get_or_create(hass)
-    if not any(resource["url"] == url for resource in resource_manager.async_items()):
-        await resource_manager.async_create_item({"res_type": "module", "url": url})
-        _LOGGER.debug("Registered frontend resource: %s", url)
+    
+    # Resources are managed in hass.data["lovelace"]["resources"]
+    lovelace_data = hass.data.get("lovelace")
+    if lovelace_data and "resources" in lovelace_data:
+        resource_manager = lovelace_data["resources"]
+        # Ensure resources are loaded
+        if not resource_manager.loaded:
+            await resource_manager.async_load()
+            
+        if not any(resource["url"] == url for resource in resource_manager.async_items()):
+            await resource_manager.async_create_item({"res_type": "module", "url": url})
+            _LOGGER.debug("Registered frontend resource: %s", url)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
