@@ -8,11 +8,15 @@ from collections import deque
 from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_ENTITY_ID, SERVICE_SET_VALUE
-from homeassistant.core import HomeAssistant
+from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+
+# SERVICE_SET_VALUE is not in homeassistant.const in some versions, 
+# and the number component defines it as 'set_value'
+SERVICE_SET_VALUE = "set_value"
 
 from .const import (
     DOMAIN,
@@ -88,8 +92,13 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
                     self.hass, [entity_id], self._async_handle_state_change
                 )
 
-    async def _async_handle_state_change(self, event):
+    @callback
+    def _async_handle_state_change(self, event):
         """Handle state changes of tracked entities."""
+        self.hass.async_create_task(self._async_process_state_change())
+
+    async def _async_process_state_change(self):
+        """Process state changes asynchronously."""
         self.async_set_updated_data(await self._async_update_data())
         await self.calculate_and_set_current()
 
