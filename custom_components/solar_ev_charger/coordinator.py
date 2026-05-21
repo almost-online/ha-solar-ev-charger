@@ -132,6 +132,8 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         grid_power = self.get_state_val(self.entities["grid"])
         ev_power = self.get_state_val(self.entities["ev_power"])
         battery_soc = self.get_state_val(self.entities["battery_soc"])
+        battery_power = self.get_state_val(self.entities["battery_power"])
+        solar_power = self.get_state_val(self.entities["solar"])
 
         # 1. Hard cutoff guardrail: If battery is strictly below minimum config, KILL EV charging
         if self.entities["battery_soc"] and battery_soc < self.min_battery_soc:
@@ -145,14 +147,45 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             voltage = float(self.default_voltage)
         phases = 1
 
-        # 3. Calculate 100% of raw excess physical power currently available
-        # (-grid_power handles negative export correctly, adding current ev_power avoids loops)
-        raw_excess = (-grid_power) + ev_power
-        total_excess_power = self._get_smoothed_power(raw_excess)
+        # 3. Calculate raw excess physical power currently available
+        # Equation: (-grid_power) + ev_power - battery_power
+        # battery_power is positive for discharging, negative for charging.
+        # So subtracting it adds charging power to the pool and subtracts discharging power from the pool.
+        raw_available = (-grid_power) + ev_power - battery_power
+
+        # Optional: Battery discharge allowance when SOC > min_battery_soc
+        # discharge_limit = solar_power * (10 + (soc - min_battery_soc)) / 100
+        # This is already implicitly handled by '- battery_power' in the pool if we allow
+        # the battery to discharge up to this limit. 
+        # However, to strictly follow the user's example where they ADD the allowance:
+        # "total avaliable power will be 2360w" (2000 solar + 360 allowance)
+        # We can cap the negative contribution of battery_power (discharging) to this allowance.
+        if self.entities["battery_soc"] and battery_soc > self.min_battery_soc:
+            discharge_pct = (10 + (battery_soc - self.min_battery_soc)) / 100
+            discharge_allowance = solar_power * discharge_pct
+            
+            # If battery is discharging (batt_p > 0), we only want to 'add' up to allowance
+            # but wait, 'raw_available = (-grid_p) + ev_p - batt_p'
+            # If we are discharging 500W and allowance is 360W:
+            # grid=0, ev=0, batt=500 -> raw = -500. This is wrong if we want to use some battery.
+            
+            # Let's re-read: "total avaliable power will be 2360w" when solar=2000 and allowance=360.
+            # This means Available = Solar + Allowance - Consumption?
+            # Or using grid: Available = (-grid) + ev + Allowance - (battery_power if battery_power > 0 else 0)?
+            
+            # Actually, the user's snippet says:
+            # total_available_power = (-grid_p) + ev_p - batt_p
+            # This equation handles battery CHARGING (-batt_p becomes positive) correctly.
+            # It also handles battery DISCHARGING (-batt_p becomes negative) by reducing pool.
+            
+            # To ALLOW discharge, we should ADD the allowance to the pool:
+            raw_available += discharge_allowance
+
+        total_available_power = self._get_smoothed_power(raw_available)
 
         # 4. Calculate Linear Interpolation for EV Share
         # Lower boundary: min_battery_soc -> 60% (0.6)
-        # Upper boundary: 95% SoC -> 90% (0.9)
+        # Upper boundary: 95% SOC -> 90% (0.9)
         low_share = 0.6
         high_share = 0.9
         upper_soc_limit = 95.0
@@ -171,18 +204,18 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             )
 
         # 5. Allocate the power segment to the EV
-        ev_allocated_power = total_excess_power * ev_share
+        ev_allocated_power = total_available_power * ev_share
 
-        # 6. Convert Power to Target Amps
+        # 7. Convert Power to Target Amps
         target_amps = ev_allocated_power / (voltage * phases)
 
-        # 7. Apply strict physical boundary limits
+        # 8. Apply strict physical boundary limits
         MIN_CHARGE_AMPS = 6.0  # IEC 61851 minimum standard threshold
 
-        if target_amps > self.max_current:
-            new_control_amps = float(self.max_current)
-        elif target_amps < MIN_CHARGE_AMPS:
+        if target_amps < MIN_CHARGE_AMPS:
             new_control_amps = 0.0
+        elif target_amps > self.max_current:
+            new_control_amps = float(self.max_current)
         else:
             # Use math.floor to be safe and slightly conservative against grid pulling
             new_control_amps = float(math.floor(target_amps))
@@ -205,7 +238,7 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             return
 
         # Apply 0.5A deadband unless it's a start/stop
-        if not is_immediate and abs(new_setpoint - current_setpoint) < 0.5:
+        if not is_immediate and abs(new_setpoint - current_setpoint) <= 0.5:
             return
 
         _LOGGER.info("Adjusting EV charger current from %s to %s (SOC: %s%%)",

@@ -10,23 +10,25 @@ You are an AI agent tasked with maintaining, improving, or troubleshooting the "
 
 ## Key Logic (coordinator.py)
 - **Surplus Calculation**: 
-  - `total_excess_power = (-grid_power) + ev_power` (smoothed over `smoothing_period`).
-  - This represents 100% of raw physical excess power currently available.
+  - `total_available_power = (-grid_power) + ev_power - battery_power` (smoothed over `smoothing_period`).
+  - This pool represents all available physical power, treating battery charging as available capacity and battery discharging as consumption.
+  - **Battery Discharge Allowance**: If SOC > `min_battery_soc`, an additional allowance is added to the pool: `allowance = solar_power * (10 + (soc - min_battery_soc)) / 100`.
 - **Battery SOC Logic**:
   - If SOC < `min_battery_soc`, EV charging is stopped (0A).
-  - If SOC >= `min_battery_soc`, surplus power is split between battery and EV.
+  - If SOC >= `min_battery_soc`, available power (including allowance) is split between battery and EV.
   - EV share scales linearly:
     - 60% at `min_battery_soc`
     - 90% at 95% SOC and above.
 - **Smoothing/Damping**:
-  - `smoothing_period`: A rolling average of raw excess power is calculated over this duration.
+  - `smoothing_period`: A rolling average of the raw available power is calculated over this duration.
   - Current adjustments (except for immediate start/stop) are delayed by this period.
   - A 0.5A deadband is applied to avoid small fluctuations.
   - Immediate stop (to 0A) or start (from 0A) bypasses the smoothing period.
 - **Current Adjustment**:
-  - `target_amps = (total_excess_power * ev_share) / (voltage * phases)`
+  - `target_amps = (total_available_power * ev_share) / (voltage * phases)`
   - Uses `math.floor` for conservative current setting.
-  - Minimum charging threshold is 6.0A (IEC 61851). Below this, charging stops (0A).
+  - Minimum charging threshold is 6.0A (IEC 61851).
+  - Power threshold: If `ev_allocated_power < 3A * voltage`, charging stops.
   - The integration adjusts the `ev_charger_control_current_entity`.
 
 ## Configured Entities (via Config Flow)
