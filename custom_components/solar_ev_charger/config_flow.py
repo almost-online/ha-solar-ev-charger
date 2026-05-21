@@ -70,6 +70,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
+@config_entries.HANDLERS.register(DOMAIN)
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Solar EV Charger."""
 
