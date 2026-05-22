@@ -113,6 +113,9 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             "battery_soc": self.get_state_val(self.entities["battery_soc"]),
             "ev_power": self.get_state_val(self.entities["ev_power"]),
             "voltage": self.get_state_val(self.entities["voltage_entity"]) or float(self.default_voltage),
+            "max_current": self.max_current,
+            "min_battery_soc": self.min_battery_soc,
+            "smoothing_period": self.smoothing_period,
         }
 
     def get_state_val(self, entity_id: str) -> float:
