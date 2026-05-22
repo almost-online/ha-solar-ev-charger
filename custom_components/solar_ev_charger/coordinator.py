@@ -39,8 +39,8 @@ from .const import (
 )
 
 # Battery/charger proportions
-HIGH_HALF_SOC = 0.9  # 10/90%
-LOW_HALF_SOC = 0.6  # 40/60%
+HIGH_SHARE_SOC = 0.9  # 10/90%
+LOW_SHARE_SOC = 0.6  # 40/60%
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -204,8 +204,6 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         total_available_power = self._get_smoothed_power(raw_available)
 
         # 4. Calculate Linear Interpolation for EV Share
-        low_share = 0.6
-        high_share = 0.9
         upper_soc_limit = (100 + self.min_battery_soc) / 2
 
         # If ignore_battery_charging is enabled, EV takes 100% of available power
@@ -214,15 +212,16 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         elif not battery_soc:
             ev_share = 1.0  # No battery tracking, use all surplus
         elif battery_soc >= upper_soc_limit:
-            ev_share = high_share
+            ev_share = HIGH_SHARE_SOC
         elif battery_soc <= self.min_battery_soc:
-            ev_share = low_share
+            ev_share = LOW_SHARE_SOC
         else:
             # Linear scale between min_battery_soc and 95%
             soc_range = upper_soc_limit - self.min_battery_soc
-            ev_share = low_share + (
-                    (high_share - low_share) * (battery_soc - self.min_battery_soc) / soc_range
-            )
+            ev_share = max(LOW_SHARE_SOC + (
+                    (HIGH_SHARE_SOC - LOW_SHARE_SOC) * (
+                    battery_soc - self.min_battery_soc) / soc_range
+            ), 1)
 
         # 5. Allocate the power segment to the EV
         ev_allocated_power = total_available_power * ev_share
@@ -253,7 +252,7 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
 
         # Immediate stop or start from zero ignores smoothing period
         is_immediate = (new_setpoint == 0 and current_setpoint > 0) or (
-                    new_setpoint > 0 and current_setpoint == 0)
+                new_setpoint > 0 and current_setpoint == 0)
 
         if not is_immediate and time_diff < self.smoothing_period:
             _LOGGER.debug("Smoothing: skipping update. Last update was %s seconds ago.", time_diff)
