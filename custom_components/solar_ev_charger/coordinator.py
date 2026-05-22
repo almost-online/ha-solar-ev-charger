@@ -39,8 +39,8 @@ from .const import (
 )
 
 # Battery/charger proportions
-HIGH_HALF_SOC = 0.9  # 10/90%
-LOW_HALF_SOC = 0.6   # 40/60%
+HIGH_SHARE_SOC = 0.9  # 10/90%
+LOW_SHARE_SOC = 0.6  # 40/60%
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -107,12 +107,20 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         """Update data for the coordinator."""
         return {
             "solar": self.get_state_val(self.entities["solar"]),
+            "solar_entity": self.entities["solar"],
             "consumption": self.get_state_val(self.entities["consumption"]),
+            "consumption_entity": self.entities["consumption"],
             "grid": self.get_state_val(self.entities["grid"]),
+            "grid_entity": self.entities["grid"],
             "battery_power": self.get_state_val(self.entities["battery_power"]),
+            "battery_power_entity": self.entities["battery_power"],
             "battery_soc": self.get_state_val(self.entities["battery_soc"]),
+            "battery_soc_entity": self.entities["battery_soc"],
             "ev_power": self.get_state_val(self.entities["ev_power"]),
-            "voltage": self.get_state_val(self.entities["voltage_entity"]) or float(self.default_voltage),
+            "ev_power_entity": self.entities["ev_power"],
+            "voltage": self.get_state_val(self.entities["voltage_entity"]) or float(
+                self.default_voltage),
+            "voltage_entity": self.entities["voltage_entity"],
             "max_current": self.max_current,
             "min_battery_soc": self.min_battery_soc,
             "smoothing_period": self.smoothing_period,
@@ -157,7 +165,8 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
 
         # 1. Hard cutoff guardrail: If battery is strictly below minimum config, KILL EV charging
         if self.entities["battery_soc"] and battery_soc < self.min_battery_soc:
-            _LOGGER.debug("Battery SOC %s < %s. Stopping EV charging.", battery_soc, self.min_battery_soc)
+            _LOGGER.debug("Battery SOC %s < %s. Stopping EV charging.", battery_soc,
+                          self.min_battery_soc)
             await self._set_charger_current(0)
             return
 
@@ -183,21 +192,19 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         if self.entities["battery_soc"] and battery_soc > self.min_battery_soc:
             discharge_pct = (10 + (battery_soc - self.min_battery_soc)) / 100
             discharge_allowance = solar_power * discharge_pct
-            
+
             # If battery is discharging (batt_p < 0), we only want to 'add' up to allowance
             # but wait, 'raw_available = (-grid_p) + ev_p + batt_p'
             # If we are discharging 500W and allowance is 360W:
             # grid=0, ev=0, batt=-500 -> raw = -500. This is wrong if we want to use some battery.
-            
+
             # To ALLOW discharge, we should ADD the allowance to the pool:
             raw_available += discharge_allowance
 
         total_available_power = self._get_smoothed_power(raw_available)
 
         # 4. Calculate Linear Interpolation for EV Share
-        low_share = 0.6
-        high_share = 0.9
-        upper_soc_limit = 95.0
+        upper_soc_limit = (100 + self.min_battery_soc) / 2
 
         # If ignore_battery_charging is enabled, EV takes 100% of available power
         if self.ignore_battery_charging:
@@ -205,15 +212,16 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         elif not battery_soc:
             ev_share = 1.0  # No battery tracking, use all surplus
         elif battery_soc >= upper_soc_limit:
-            ev_share = high_share
+            ev_share = HIGH_SHARE_SOC
         elif battery_soc <= self.min_battery_soc:
-            ev_share = low_share
+            ev_share = LOW_SHARE_SOC
         else:
             # Linear scale between min_battery_soc and 95%
             soc_range = upper_soc_limit - self.min_battery_soc
-            ev_share = low_share + (
-                (high_share - low_share) * (battery_soc - self.min_battery_soc) / soc_range
-            )
+            ev_share = max(LOW_SHARE_SOC + (
+                    (HIGH_SHARE_SOC - LOW_SHARE_SOC) * (
+                    battery_soc - self.min_battery_soc) / soc_range
+            ), 1)
 
         # 5. Allocate the power segment to the EV
         ev_allocated_power = total_available_power * ev_share
@@ -243,7 +251,8 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         time_diff = (now - self._last_update_time).total_seconds()
 
         # Immediate stop or start from zero ignores smoothing period
-        is_immediate = (new_setpoint == 0 and current_setpoint > 0) or (new_setpoint > 0 and current_setpoint == 0)
+        is_immediate = (new_setpoint == 0 and current_setpoint > 0) or (
+                new_setpoint > 0 and current_setpoint == 0)
 
         if not is_immediate and time_diff < self.smoothing_period:
             _LOGGER.debug("Smoothing: skipping update. Last update was %s seconds ago.", time_diff)
