@@ -25,19 +25,54 @@ class SolarEVChargerCard extends HTMLElement {
                 width: 80px;
                 cursor: pointer;
               }
-              .battery_charging .icon-circle {
+              .battery_charging .icon-circle,
+              .ev_charging .icon-circle,
+              .solar_generating .icon-circle,
+              .grid_export .icon-circle {
                 border-color: #4caf50;
-                animation: pulse 2s infinite;
+                animation: pulse-green 2s infinite;
               }
+              .grid_import .icon-circle {
+                border-color: #ff9800;
+                animation: pulse-orange 2s infinite;
+              }
+              .home_high .icon-circle {
+                border-color: #ff9800;
+                animation: pulse-orange 2s infinite;
+              }
+              .home_medium .icon-circle {
+                border-color: #f44336;
+                animation: pulse-red 2s infinite;
+              }
+              .home_low .icon-circle {
+                border-color: #ffeb3b;
+                animation: pulse-yellow 2s infinite;
+              }
+
               .battery_discharging.soc-low .icon-circle { border-color: #f44336; }
               .battery_discharging.soc-mid-low .icon-circle { border-color: #ff9800; }
               .battery_discharging.soc-mid-high .icon-circle { border-color: #ffeb3b; }
               .battery_discharging.soc-high .icon-circle { border-color: #4caf50; }
               
-              @keyframes pulse {
+              @keyframes pulse-green {
                 0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
                 70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
                 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+              }
+              @keyframes pulse-orange {
+                0% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.4); }
+                70% { box-shadow: 0 0 0 10px rgba(255, 152, 0, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0); }
+              }
+              @keyframes pulse-red {
+                0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4); }
+                70% { box-shadow: 0 0 0 10px rgba(244, 67, 54, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+              }
+              @keyframes pulse-yellow {
+                0% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0.4); }
+                70% { box-shadow: 0 0 0 10px rgba(255, 235, 59, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0); }
               }
               .icon-circle {
                 width: 50px;
@@ -80,6 +115,20 @@ class SolarEVChargerCard extends HTMLElement {
                 height: 20px;
                 background: var(--divider-color);
                 position: relative;
+                display: flex;
+                justify-content: center;
+              }
+              .vertical-connection .arrow {
+                top: auto;
+                left: auto;
+              }
+              .vertical-connection .arrow.down {
+                bottom: -5px;
+                transform: rotate(135deg);
+              }
+              .vertical-connection .arrow.up {
+                top: -5px;
+                transform: rotate(-45deg);
               }
             </style>
             <div class="flow-container" id="container">
@@ -120,21 +169,26 @@ class SolarEVChargerCard extends HTMLElement {
     else if (soc < 80) socClass = "soc-mid-high";
     else socClass = "soc-high";
 
+    let homeClass = "";
+    if (consumption > 500) homeClass = "home_high";
+    else if (consumption > 400) homeClass = "home_medium";
+    else if (consumption > 0) homeClass = "home_low";
+
     this.content.innerHTML = `
       <div class="row">
-        <div class="node" data-entity="${solar_entity}">
+        <div class="node ${solar > 0 ? 'solar_generating' : ''}" data-entity="${solar_entity}">
           <div class="icon-circle"><ha-icon icon="mdi:solar-panel-large"></ha-icon></div>
           <div class="value">${solar}W</div>
           <div class="label">Solar</div>
         </div>
         <div class="connection"><div class="arrow right"></div></div>
-        <div class="node" data-entity="${consumption_entity}">
+        <div class="node ${homeClass}" data-entity="${consumption_entity}">
           <div class="icon-circle"><ha-icon icon="mdi:home"></ha-icon></div>
           <div class="value">${consumption}W</div>
           <div class="label">Home</div>
         </div>
         <div class="connection"><div class="arrow ${grid >= 0 ? 'left' : 'right'}"></div></div>
-        <div class="node" data-entity="${grid_entity}">
+        <div class="node ${grid > 0 ? 'grid_export' : (grid < 0 ? 'grid_import' : '')}" data-entity="${grid_entity}">
           <div class="icon-circle"><ha-icon icon="mdi:transmission-tower"></ha-icon></div>
           <div class="value">${Math.abs(grid)}W</div>
           <div class="label">${grid >= 0 ? 'Export' : 'Import'}</div>
@@ -142,21 +196,25 @@ class SolarEVChargerCard extends HTMLElement {
       </div>
       <div class="row" style="justify-content: center; gap: 40px; margin-top: 10px;">
         <div class="node battery_${battery < 0 ? 'discharging' : 'charging'} ${battery >= 0 ? '' : socClass}" data-entity="${battery_power_entity || battery_soc_entity}">
-           <div class="vertical-connection"></div>
-           <div class="icon-circle">
-             <ha-icon icon="mdi:battery${battery >= 0 ? '-charging' : ''}"></ha-icon>
-           </div>
-           <div class="value">${soc}%</div>
-           <div class="value">${Math.abs(battery)}W</div>
-           <div class="label">${battery >= 0 ? 'Charging' : 'Discharging'}</div>
+          <div class="vertical-connection">
+            <div class="arrow ${battery >= 0 ? 'down' : 'up'}"></div>
+          </div>
+          <div class="icon-circle">
+            <ha-icon icon="mdi:battery${battery >= 0 ? '-charging' : ''}"></ha-icon>
+          </div>
+          <div class="value">${soc}%</div>
+          <div class="value">${Math.abs(battery)}W</div>
+          <div class="label">${battery >= 0 ? 'Charging' : 'Discharging'}</div>
         </div>
-        <div class="node" data-entity="${ev_power_entity}">
-           <div class="vertical-connection"></div>
-           <div class="icon-circle">
-             <ha-icon icon="mdi:ev-station"></ha-icon>
-           </div>
-           <div class="value">${ev}W</div>
-           <div class="label">EV</div>
+        <div class="node ${ev > 0 ? 'ev_charging' : ''}" data-entity="${ev_power_entity}">
+          <div class="vertical-connection">
+            ${ev > 0 ? '<div class="arrow down"></div>' : ''}
+          </div>
+          <div class="icon-circle">
+            <ha-icon icon="mdi:ev-station"></ha-icon>
+          </div>
+          <div class="value">${ev}W</div>
+          <div class="label">EV</div>
         </div>
       </div>
     `;
