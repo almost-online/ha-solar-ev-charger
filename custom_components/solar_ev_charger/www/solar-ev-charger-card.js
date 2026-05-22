@@ -24,6 +24,20 @@ class SolarEVChargerCard extends HTMLElement {
                 align-items: center;
                 width: 80px;
               }
+              .battery_charging .icon-circle {
+                border-color: #4caf50;
+                animation: pulse 2s infinite;
+              }
+              .battery_discharging.soc-low .icon-circle { border-color: #f44336; }
+              .battery_discharging.soc-mid-low .icon-circle { border-color: #ff9800; }
+              .battery_discharging.soc-mid-high .icon-circle { border-color: #ffeb3b; }
+              .battery_discharging.soc-high .icon-circle { border-color: #4caf50; }
+              
+              @keyframes pulse {
+                0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
+                70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+              }
               .icon-circle {
                 width: 50px;
                 height: 50px;
@@ -92,6 +106,12 @@ class SolarEVChargerCard extends HTMLElement {
     const ev = Math.round(data.ev_power || 0);
     const soc = Math.round(data.battery_soc || 0);
 
+    let socClass = "";
+    if (soc < 40) socClass = "soc-low";
+    else if (soc < 60) socClass = "soc-mid-low";
+    else if (soc < 80) socClass = "soc-mid-high";
+    else socClass = "soc-high";
+
     this.content.innerHTML = `
       <div class="row">
         <div class="node">
@@ -113,14 +133,14 @@ class SolarEVChargerCard extends HTMLElement {
         </div>
       </div>
       <div class="row" style="justify-content: center; gap: 40px; margin-top: 10px;">
-        <div class="node">
+        <div class="node battery_${battery < 0 ? 'discharging' : 'charging'} ${battery >= 0 ? '' : socClass}">
            <div class="vertical-connection"></div>
            <div class="icon-circle">
-             <ha-icon icon="mdi:battery"></ha-icon>
+             <ha-icon icon="mdi:battery${battery >= 0 ? '-charging' : ''}"></ha-icon>
            </div>
            <div class="value">${soc}%</div>
            <div class="value">${Math.abs(battery)}W</div>
-           <div class="label">${battery <= 0 ? 'Charging' : 'Discharging'}</div>
+           <div class="label">${battery >= 0 ? 'Charging' : 'Discharging'}</div>
         </div>
         <div class="node">
            <div class="vertical-connection"></div>
@@ -189,6 +209,11 @@ class SolarEVChargerDashboardStrategy extends HTMLElement {
                   type: "button",
                   entity: "switch.solar_ev_charger_solar_only_mode",
                   name: "Solar Only"
+                },
+                {
+                  type: "button",
+                  entity: "switch.solar_ev_charger_ignore_battery_charging",
+                  name: "Priority EV"
                 }
               ]
             },

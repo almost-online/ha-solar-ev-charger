@@ -38,6 +38,8 @@ class SolarEVChargerStatusSensor(CoordinatorEntity, SensorEntity):
             return "Disabled"
         if not self.coordinator.solar_only_mode:
             return "Manual"
+        if self.coordinator.ignore_battery_charging:
+            return "Priority EV"
         return "Solar Only"
 
     @property

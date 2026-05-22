@@ -19,6 +19,9 @@ You are an AI agent tasked with maintaining, improving, or troubleshooting the "
   - EV share scales linearly:
     - 60% at `min_battery_soc`
     - 90% at 95% SOC and above.
+  - **Ignore Battery Mode**:
+    - When `ignore_battery_charging` is enabled, `ev_share` is set to 100% (1.0).
+    - This prioritizes EV charging by using the power that would otherwise go to the battery.
 - **Smoothing/Damping**:
   - `smoothing_period`: A rolling average of the raw available power is calculated over this duration.
   - Current adjustments (except for immediate start/stop) are delayed by this period.

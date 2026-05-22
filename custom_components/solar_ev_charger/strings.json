@@ -35,6 +35,13 @@
         },
         "description": "Update the entities for Solar EV Charging control."
       }
+    },
+    "entity": {
+      "switch": {
+        "ignore_battery_charging": {
+          "name": "Ignore Battery Charging"
+        }
+      }
     }
   }
 }

@@ -22,6 +22,7 @@ async def async_setup_entry(
     async_add_entities([
         SolarEVChargerEnableSwitch(coordinator),
         SolarEVChargerSolarOnlySwitch(coordinator),
+        SolarEVChargerIgnoreBatterySwitch(coordinator),
     ])
 
 class SolarEVChargerEnableSwitch(CoordinatorEntity, SwitchEntity):
@@ -74,3 +75,30 @@ class SolarEVChargerSolarOnlySwitch(CoordinatorEntity, SwitchEntity):
         """Turn the switch off."""
         self.coordinator.solar_only_mode = False
         self.async_write_ha_state()
+
+class SolarEVChargerIgnoreBatterySwitch(CoordinatorEntity, SwitchEntity):
+    """Switch to enable/disable ignoring battery charging."""
+
+    def __init__(self, coordinator: SolarEVChargerCoordinator) -> None:
+        """Initialize."""
+        super().__init__(coordinator)
+        self._attr_name = "Solar EV Charger Ignore Battery Charging"
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_ignore_battery"
+        self._attr_device_info = coordinator.device_info
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if the switch is on."""
+        return self.coordinator.ignore_battery_charging
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn the switch on."""
+        self.coordinator.ignore_battery_charging = True
+        self.async_write_ha_state()
+        await self.coordinator.calculate_and_set_current()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the switch off."""
+        self.coordinator.ignore_battery_charging = False
+        self.async_write_ha_state()
+        await self.coordinator.calculate_and_set_current()

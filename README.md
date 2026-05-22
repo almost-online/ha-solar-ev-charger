@@ -6,6 +6,7 @@ This Home Assistant integration allows you to automatically control your EV char
 
 - **Solar Only Mode**: Adjusts EV charging current to match available solar surplus.
 - **Energy Flow Diagram**: Visualizes power distribution between solar, grid, battery, and EV.
+- **Priority EV Mode**: New switch to ignore battery charging and prioritize solar power for the EV.
 - **Grid-Aware**: Uses grid export/import data to determine available power.
 - **Battery-Aware**: Considers power going into your home battery as available surplus for the EV.
 - **Dynamic Control**: Reacts to changes in household consumption and solar production in real-time.

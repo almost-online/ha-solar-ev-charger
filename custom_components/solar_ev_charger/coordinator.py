@@ -59,6 +59,7 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self.enabled = True
         self.solar_only_mode = True
+        self.ignore_battery_charging = False
 
         self.entities = {
             "solar": entry.data[CONF_SOLAR_POWER_ENTITY],
@@ -164,35 +165,26 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         phases = 1
 
         # 3. Calculate raw excess physical power currently available
-        # Equation: (-grid_power) + ev_power - battery_power
-        # battery_power is positive for discharging, negative for charging.
-        # So subtracting it adds charging power to the pool and subtracts discharging power from the pool.
-        raw_available = (-grid_power) + ev_power - battery_power
+        # Equation: (-grid_power) + ev_power + battery_power
+        # battery_power is positive for charging, negative for discharging.
+        # So adding it adds charging power to the pool and adding discharging power (negative) subtracts from the pool.
+        raw_available = (-grid_power) + ev_power + battery_power
 
         # Optional: Battery discharge allowance when SOC > min_battery_soc
         # discharge_limit = solar_power * (10 + (soc - min_battery_soc)) / 100
-        # This is already implicitly handled by '- battery_power' in the pool if we allow
+        # This is already implicitly handled by '+ battery_power' in the pool if we allow
         # the battery to discharge up to this limit. 
         # However, to strictly follow the user's example where they ADD the allowance:
         # "total avaliable power will be 2360w" (2000 solar + 360 allowance)
-        # We can cap the negative contribution of battery_power (discharging) to this allowance.
+        # We can cap the contribution of battery_power (discharging) to this allowance.
         if self.entities["battery_soc"] and battery_soc > self.min_battery_soc:
             discharge_pct = (10 + (battery_soc - self.min_battery_soc)) / 100
             discharge_allowance = solar_power * discharge_pct
             
-            # If battery is discharging (batt_p > 0), we only want to 'add' up to allowance
-            # but wait, 'raw_available = (-grid_p) + ev_p - batt_p'
+            # If battery is discharging (batt_p < 0), we only want to 'add' up to allowance
+            # but wait, 'raw_available = (-grid_p) + ev_p + batt_p'
             # If we are discharging 500W and allowance is 360W:
-            # grid=0, ev=0, batt=500 -> raw = -500. This is wrong if we want to use some battery.
-            
-            # Let's re-read: "total avaliable power will be 2360w" when solar=2000 and allowance=360.
-            # This means Available = Solar + Allowance - Consumption?
-            # Or using grid: Available = (-grid) + ev + Allowance - (battery_power if battery_power > 0 else 0)?
-            
-            # Actually, the user's snippet says:
-            # total_available_power = (-grid_p) + ev_p - batt_p
-            # This equation handles battery CHARGING (-batt_p becomes positive) correctly.
-            # It also handles battery DISCHARGING (-batt_p becomes negative) by reducing pool.
+            # grid=0, ev=0, batt=-500 -> raw = -500. This is wrong if we want to use some battery.
             
             # To ALLOW discharge, we should ADD the allowance to the pool:
             raw_available += discharge_allowance
@@ -200,13 +192,14 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         total_available_power = self._get_smoothed_power(raw_available)
 
         # 4. Calculate Linear Interpolation for EV Share
-        # Lower boundary: min_battery_soc -> 60% (0.6)
-        # Upper boundary: 95% SOC -> 90% (0.9)
         low_share = 0.6
         high_share = 0.9
         upper_soc_limit = 95.0
 
-        if not self.entities["battery_soc"]:
+        # If ignore_battery_charging is enabled, EV takes 100% of available power
+        if self.ignore_battery_charging:
+            ev_share = 1.0
+        elif not battery_soc:
             ev_share = 1.0  # No battery tracking, use all surplus
         elif battery_soc >= upper_soc_limit:
             ev_share = high_share
