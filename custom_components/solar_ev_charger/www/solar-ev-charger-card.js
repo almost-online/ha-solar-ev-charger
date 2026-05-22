@@ -23,6 +23,7 @@ class SolarEVChargerCard extends HTMLElement {
                 flex-direction: column;
                 align-items: center;
                 width: 80px;
+                cursor: pointer;
               }
               .battery_charging .icon-circle {
                 border-color: #4caf50;
@@ -106,6 +107,13 @@ class SolarEVChargerCard extends HTMLElement {
     const ev = Math.round(data.ev_power || 0);
     const soc = Math.round(data.battery_soc || 0);
 
+    const solar_entity = data.solar_entity;
+    const consumption_entity = data.consumption_entity;
+    const grid_entity = data.grid_entity;
+    const battery_power_entity = data.battery_power_entity;
+    const battery_soc_entity = data.battery_soc_entity;
+    const ev_power_entity = data.ev_power_entity;
+
     let socClass = "";
     if (soc < 40) socClass = "soc-low";
     else if (soc < 60) socClass = "soc-mid-low";
@@ -114,26 +122,26 @@ class SolarEVChargerCard extends HTMLElement {
 
     this.content.innerHTML = `
       <div class="row">
-        <div class="node">
+        <div class="node" data-entity="${solar_entity}">
           <div class="icon-circle"><ha-icon icon="mdi:solar-panel-large"></ha-icon></div>
           <div class="value">${solar}W</div>
           <div class="label">Solar</div>
         </div>
         <div class="connection"><div class="arrow right"></div></div>
-        <div class="node">
+        <div class="node" data-entity="${consumption_entity}">
           <div class="icon-circle"><ha-icon icon="mdi:home"></ha-icon></div>
           <div class="value">${consumption}W</div>
           <div class="label">Home</div>
         </div>
         <div class="connection"><div class="arrow ${grid >= 0 ? 'left' : 'right'}"></div></div>
-        <div class="node">
+        <div class="node" data-entity="${grid_entity}">
           <div class="icon-circle"><ha-icon icon="mdi:transmission-tower"></ha-icon></div>
           <div class="value">${Math.abs(grid)}W</div>
           <div class="label">${grid >= 0 ? 'Export' : 'Import'}</div>
         </div>
       </div>
       <div class="row" style="justify-content: center; gap: 40px; margin-top: 10px;">
-        <div class="node battery_${battery < 0 ? 'discharging' : 'charging'} ${battery >= 0 ? '' : socClass}">
+        <div class="node battery_${battery < 0 ? 'discharging' : 'charging'} ${battery >= 0 ? '' : socClass}" data-entity="${battery_power_entity || battery_soc_entity}">
            <div class="vertical-connection"></div>
            <div class="icon-circle">
              <ha-icon icon="mdi:battery${battery >= 0 ? '-charging' : ''}"></ha-icon>
@@ -142,7 +150,7 @@ class SolarEVChargerCard extends HTMLElement {
            <div class="value">${Math.abs(battery)}W</div>
            <div class="label">${battery >= 0 ? 'Charging' : 'Discharging'}</div>
         </div>
-        <div class="node">
+        <div class="node" data-entity="${ev_power_entity}">
            <div class="vertical-connection"></div>
            <div class="icon-circle">
              <ha-icon icon="mdi:ev-station"></ha-icon>
@@ -152,6 +160,20 @@ class SolarEVChargerCard extends HTMLElement {
         </div>
       </div>
     `;
+
+    this.content.querySelectorAll('.node').forEach(node => {
+      node.onclick = () => {
+        const entity = node.getAttribute('data-entity');
+        if (entity && entity !== 'null' && entity !== 'undefined') {
+          const event = new CustomEvent('hass-more-info', {
+            detail: { entityId: entity },
+            bubbles: true,
+            composed: true,
+          });
+          this.dispatchEvent(event);
+        }
+      };
+    });
   }
 
   setConfig(config) {
@@ -222,8 +244,16 @@ class SolarEVChargerDashboardStrategy extends HTMLElement {
                 title: "Control Settings",
                 entities: [
                     {
-                        entity: "number.ev_charger_current_limit", // This is just an example, it should be the control entity
-                        name: "Manual Current Limit"
+                        entity: "number.solar_ev_charger_max_current",
+                        name: "Max Current"
+                    },
+                    {
+                        entity: "number.solar_ev_charger_min_battery_soc",
+                        name: "Min Battery SOC"
+                    },
+                    {
+                        entity: "number.solar_ev_charger_smoothing_period",
+                        name: "Smoothing Period"
                     }
                 ]
             }
@@ -231,12 +261,6 @@ class SolarEVChargerDashboardStrategy extends HTMLElement {
         }
       ]
     };
-
-    // Try to find the actual control entity from sensor attributes if possible
-    const state = hass.states[statusSensor];
-    if (state && state.attributes) {
-        // We could potentially add more cards here based on attributes
-    }
 
     return dashboard;
   }
