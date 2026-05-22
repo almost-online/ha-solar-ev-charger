@@ -33,9 +33,11 @@ from .const import (
     CONF_EV_CHARGER_VOLTAGE_ENTITY,
     CONF_MIN_BATTERY_SOC,
     CONF_SMOOTHING_PERIOD,
+    CONF_CURRENT_INCREASE_STEP,
     DEFAULT_VOLTAGE,
     DEFAULT_MIN_BATTERY_SOC,
     DEFAULT_SMOOTHING_PERIOD,
+    DEFAULT_CURRENT_INCREASE_STEP,
 )
 
 # Battery/charger proportions
@@ -75,6 +77,7 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         self.default_voltage = entry.data.get(CONF_EV_CHARGER_VOLTAGE, DEFAULT_VOLTAGE)
         self.min_battery_soc = entry.data.get(CONF_MIN_BATTERY_SOC, DEFAULT_MIN_BATTERY_SOC)
         self.smoothing_period = entry.data.get(CONF_SMOOTHING_PERIOD, DEFAULT_SMOOTHING_PERIOD)
+        self.current_increase_step = entry.data.get(CONF_CURRENT_INCREASE_STEP, DEFAULT_CURRENT_INCREASE_STEP)
 
         self._last_update_time = datetime.min
         self._power_history = deque()
@@ -231,14 +234,53 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
 
         # 8. Apply strict physical boundary limits
         MIN_CHARGE_AMPS = 6.0  # IEC 61851 minimum standard threshold
+        control_entity = self.entities["ev_control"]
+        current_setpoint = self.get_state_val(control_entity)
 
         if target_amps < MIN_CHARGE_AMPS:
             new_control_amps = 0.0
         elif target_amps > self.max_current:
             new_control_amps = float(self.max_current)
         else:
-            # Use math.floor to be safe and slightly conservative against grid pulling
-            new_control_amps = float(math.floor(target_amps))
+            # Apply current increase/decrease step logic
+            if target_amps > current_setpoint:
+                # Increasing
+                diff = target_amps - current_setpoint
+                steps = math.floor(diff / self.current_increase_step)
+                new_control_amps = current_setpoint + (steps * self.current_increase_step)
+                
+                # Check if increase will exceed generation without total consumption
+                # Generation = solar_power
+                # Total consumption = consumption_power (which includes current EV power)
+                # We want to ensure: house_consumption + new_ev_power <= solar_power
+                # house_consumption = consumption_power - current_ev_power
+                # new_ev_power = new_control_amps * voltage * phases
+                ev_power = self.get_state_val(self.entities["ev_power"])
+                house_consumption = max(0, solar_power - self.get_state_val(self.entities["grid"]) - ev_power) # wait, grid can be positive or negative
+                # Re-calculate house consumption more reliably:
+                # consumption_power usually is house + ev.
+                # house = consumption_power - ev_power
+                house_power = max(0, self.get_state_val(self.entities["consumption"]) - ev_power)
+                projected_ev_power = new_control_amps * voltage * phases
+                
+                if (house_power + projected_ev_power) > solar_power:
+                    # Scale back to stay within solar limits
+                    available_for_ev = max(0, solar_power - house_power)
+                    max_allowed_amps = available_for_ev / (voltage * phases)
+                    if max_allowed_amps < current_setpoint:
+                         new_control_amps = current_setpoint # Don't increase if it would exceed solar
+                    else:
+                         # Recalculate steps within solar limits
+                         diff_allowed = max_allowed_amps - current_setpoint
+                         steps_allowed = math.floor(diff_allowed / self.current_increase_step)
+                         new_control_amps = current_setpoint + (steps_allowed * self.current_increase_step)
+            elif target_amps < current_setpoint:
+                # Decreasing
+                diff = current_setpoint - target_amps
+                steps = math.ceil(diff / self.current_increase_step)
+                new_control_amps = max(MIN_CHARGE_AMPS, current_setpoint - (steps * self.current_increase_step))
+            else:
+                new_control_amps = current_setpoint
 
         await self._set_charger_current(new_control_amps, battery_soc)
 
@@ -258,8 +300,8 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Smoothing: skipping update. Last update was %s seconds ago.", time_diff)
             return
 
-        # Apply 0.5A deadband unless it's a start/stop
-        if not is_immediate and abs(new_setpoint - current_setpoint) <= 0.5:
+        # Apply deadband logic
+        if not is_immediate and abs(new_setpoint - current_setpoint) < 0.1:
             return
 
         _LOGGER.info("Adjusting EV charger current from %s to %s (SOC: %s%%)",

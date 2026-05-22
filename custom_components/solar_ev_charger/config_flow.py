@@ -25,9 +25,11 @@ from .const import (
     CONF_EV_CHARGER_VOLTAGE_ENTITY,
     CONF_MIN_BATTERY_SOC,
     CONF_SMOOTHING_PERIOD,
+    CONF_CURRENT_INCREASE_STEP,
     DEFAULT_VOLTAGE,
     DEFAULT_MIN_BATTERY_SOC,
     DEFAULT_SMOOTHING_PERIOD,
+    DEFAULT_CURRENT_INCREASE_STEP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,6 +67,22 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         ),
         vol.Optional(CONF_SMOOTHING_PERIOD, default=DEFAULT_SMOOTHING_PERIOD): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=300)
+        ),
+        vol.Optional(CONF_CURRENT_INCREASE_STEP, default=DEFAULT_CURRENT_INCREASE_STEP): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=[
+                    {"value": 0.1, "label": "0.1A"},
+                    {"value": 0.5, "label": "0.5A"},
+                    {"value": 1.0, "label": "1A"},
+                    {"value": 2.0, "label": "2A"},
+                    {"value": 4.0, "label": "4A"},
+                    {"value": 6.0, "label": "6A"},
+                    {"value": 8.0, "label": "8A"},
+                    {"value": 10.0, "label": "10A"},
+                    {"value": 16.0, "label": "16A"},
+                ],
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
         ),
     }
 )
