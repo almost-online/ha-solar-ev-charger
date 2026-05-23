@@ -63,7 +63,19 @@ It then calculates an EV share based on Battery SOC:
 The charging current is adjusted according to:
 `Target Amps = (Available Power * EV Share) / Voltage`
 
-The setpoint is updated with a smoothing period and a 0.5A deadband to protect your charger.
+The setpoint is updated with a smoothing period and a 0.1A deadband to protect your charger.
+
+### Optimization Result
+
+Below you can see the comparison of EV Charger (EVC) power before and after the integration.
+
+**EVC Before Integration**
+Before the integration, the EVC power is represented by a strong horizontal line, indicating a constant charging rate regardless of solar generation or home consumption.
+![EVC Before Integration](EVC_before.png)
+
+**EVC After Integration**
+After the integration, the EVC power becomes dynamical, adjusting in real-time to match the available solar energy and optimize consumption.
+![EVC After Integration](EVC_after.png)
 
 ## Installation
 
