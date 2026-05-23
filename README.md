@@ -15,6 +15,12 @@ This Home Assistant integration allows you to automatically control your EV char
 
 This integration includes a custom Lovelace card to visualize the energy flow.
 
+### Energy Flow Diagram
+
+This integration provides a beautiful energy flow diagram to visualize power distribution:
+
+![Energy Flow Card](assets/energy_flow.png)
+
 ### Manual Setup
 To use the card, you can use the automated dashboard creation, the built-in Dashboard Blueprint, or add it manually.
 
@@ -71,11 +77,11 @@ Below you can see the comparison of EV Charger (EVC) power before and after the 
 
 **EVC Before Integration**
 Before the integration, the EVC power is represented by a strong horizontal line, indicating a constant charging rate regardless of solar generation or home consumption.
-![EVC Before Integration](EVC_before.png)
+![EVC Before Integration](assets/EVC_before.png)
 
 **EVC After Integration**
 After the integration, the EVC power becomes dynamical, adjusting in real-time to match the available solar energy and optimize consumption.
-![EVC After Integration](EVC_after.png)
+![EVC After Integration](assets/EVC_after.png)
 
 ## Installation
 
