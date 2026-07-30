@@ -273,6 +273,7 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
                     ATTR_ENTITY_ID: control_entity,
                     "value": round(new_setpoint, 1),
                 },
+                blocking=True,
             )
         except Exception as err:
             if new_setpoint == 0:
