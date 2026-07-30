@@ -265,11 +265,18 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         _LOGGER.info("Adjusting EV charger current from %s to %s (SOC: %s%%)",
                      current_setpoint, new_setpoint, battery_soc)
         self._last_update_time = now
-        await self.hass.services.async_call(
-            "number",
-            SERVICE_SET_VALUE,
-            {
-                ATTR_ENTITY_ID: control_entity,
-                "value": round(new_setpoint, 1),
-            },
-        )
+        try:
+            await self.hass.services.async_call(
+                "number",
+                SERVICE_SET_VALUE,
+                {
+                    ATTR_ENTITY_ID: control_entity,
+                    "value": round(new_setpoint, 1),
+                },
+            )
+        except Exception as err:
+            if new_setpoint == 0:
+                _LOGGER.debug("Failed to set charger current to 0, "
+                              "it might not be supported by the entity: %s", err)
+            else:
+                _LOGGER.error("Error setting charger current: %s", err)

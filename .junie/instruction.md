@@ -82,3 +82,11 @@ You are an AI agent tasked with maintaining, improving, or troubleshooting the "
 3. **Refactoring**:
    - Keep the logic centralized in the `SolarEVChargerCoordinator`.
    - Maintain the use of `async_track_state_change_event` for reactive updates.
+
+## Versioning Rule
+- Always update the version in `manifest.json` after any code change.
+- Use semantic versioning:
+  - **Patch** (1.2.x): For backwards-compatible bug fixes.
+  - **Minor** (1.x.0): For new features that are backwards-compatible.
+  - **Major** (x.0.0): For incompatible API changes or major overhauls.
+- Ensure the version is bumped before submitting changes.
