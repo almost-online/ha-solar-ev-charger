@@ -278,6 +278,6 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             if new_setpoint == 0:
                 _LOGGER.debug("Failed to set charger current to 0, "
                               "it might not be supported by the entity: %s", err)
-                self._set_charger_current(MIN_CHARGE_AMPS, battery_soc)
+                await self._set_charger_current(MIN_CHARGE_AMPS, battery_soc)
             else:
                 _LOGGER.error("Error setting charger current: %s", err)
