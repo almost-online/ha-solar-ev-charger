@@ -261,6 +261,9 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         if not is_immediate and abs(new_setpoint - current_setpoint) <= 0.5:
             return
 
+        if new_setpoint <= 0:
+            new_setpoint = MIN_CHARGE_AMPS
+
         _LOGGER.info("Adjusting EV charger current from %s to %s (SOC: %s%%)",
                      current_setpoint, new_setpoint, battery_soc)
         self._last_update_time = now
@@ -270,7 +273,7 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
                 SERVICE_SET_VALUE,
                 {
                     ATTR_ENTITY_ID: control_entity,
-                    "value": round(new_setpoint, 1) if new_setpoint > 0 else MIN_CHARGE_AMPS,
+                    "value": round(new_setpoint, 1),
                 },
                 blocking=True,
             )
