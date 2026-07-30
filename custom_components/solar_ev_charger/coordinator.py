@@ -41,6 +41,7 @@ from .const import (
 # Battery/charger proportions
 HIGH_SHARE_SOC = 0.9  # 10/90%
 LOW_SHARE_SOC = 0.6  # 40/60%
+MIN_CHARGE_AMPS = 3.0  # IEC 61851 minimum standard threshold
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -230,8 +231,6 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         target_amps = ev_allocated_power / (voltage * phases)
 
         # 8. Apply strict physical boundary limits
-        MIN_CHARGE_AMPS = 6.0  # IEC 61851 minimum standard threshold
-
         if target_amps < MIN_CHARGE_AMPS:
             new_control_amps = 0.0
         elif target_amps > self.max_current:
@@ -279,5 +278,6 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             if new_setpoint == 0:
                 _LOGGER.debug("Failed to set charger current to 0, "
                               "it might not be supported by the entity: %s", err)
+                self._set_charger_current(MIN_CHARGE_AMPS, battery_soc)
             else:
                 _LOGGER.error("Error setting charger current: %s", err)
