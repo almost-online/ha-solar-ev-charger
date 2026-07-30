@@ -232,7 +232,7 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
 
         # 8. Apply strict physical boundary limits
         if target_amps < MIN_CHARGE_AMPS:
-            new_control_amps = MIN_CHARGE_AMPS
+            new_control_amps = 0
         elif target_amps > self.max_current:
             new_control_amps = float(self.max_current)
         else:
@@ -270,7 +270,7 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
                 SERVICE_SET_VALUE,
                 {
                     ATTR_ENTITY_ID: control_entity,
-                    "value": round(new_setpoint, 1),
+                    "value": round(new_setpoint, 1) if new_setpoint > 0 else MIN_CHARGE_AMPS,
                 },
                 blocking=True,
             )
