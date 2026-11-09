@@ -1,0 +1,13 @@
+---
+description: Solar EV Charger integration conventions, versioning, and live MCP servers
+alwaysApply: true
+---
+
+# Solar EV Charger
+
+- Control math stays in `SolarEVChargerCoordinator` (`coordinator.py`). The live surplus line is `solar - consumption + max_battery_discharge_power` in watts. Do not revive the commented grid equation.
+- Power sensors are watts. The discharge limit is kW in the UI and watts in entry data. Grid export is positive. Battery charging is positive. Charger control is a `number` entity in amps. `phases` is 1.
+- Bump `manifest.json` `version` on integration code changes (patch / minor / major). Docs-only edits do not need a bump. Keep `strings.json` and `translations/en.json` in sync.
+- Live checks use MCP `home-assistant` (`/api/mcp/homeassistant`) only. Never copy tokens into the repo. Do not call charger actions or config-entry reloads unless the user asked. ESPHome is not part of this integration.
+- Charger-specific behavior lives in `charger/` drivers (`custom`, `solax_modbus`). New charger types register in `charger/__init__.py`.
+- Details and the two quirks (interpolation `max(..., 1)`, Custom stop rewritten to 6 A) are in `AGENTS.md`.

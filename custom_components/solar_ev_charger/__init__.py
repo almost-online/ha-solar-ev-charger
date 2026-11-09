@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.lovelace import resources
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_CHARGER_TYPE, CHARGER_TYPE_CUSTOM
 from .coordinator import SolarEVChargerCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,6 +53,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("Registered frontend resource: %s", url)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    return True
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate old config entries."""
+    if entry.version > 2:
+        return False
+
+    if entry.version == 1:
+        hass.config_entries.async_update_entry(
+            entry,
+            data={CONF_CHARGER_TYPE: CHARGER_TYPE_CUSTOM, **entry.data},
+            version=2,
+        )
+        _LOGGER.info("Migrated Solar EV Charger entry %s to version 2 (custom charger)", entry.entry_id)
 
     return True
 
