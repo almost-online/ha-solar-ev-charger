@@ -24,9 +24,11 @@ from .const import (
     CONF_EV_CHARGER_VOLTAGE,
     CONF_EV_CHARGER_VOLTAGE_ENTITY,
     CONF_MIN_BATTERY_SOC,
+    CONF_MAX_BATTERY_DISCHARGE_POWER,
     CONF_SMOOTHING_PERIOD,
     DEFAULT_VOLTAGE,
     DEFAULT_MIN_BATTERY_SOC,
+    DEFAULT_MAX_BATTERY_DISCHARGE_POWER,
     DEFAULT_SMOOTHING_PERIOD,
 )
 
@@ -63,6 +65,9 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Optional(CONF_MIN_BATTERY_SOC, default=DEFAULT_MIN_BATTERY_SOC): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=100)
         ),
+        vol.Optional(CONF_MAX_BATTERY_DISCHARGE_POWER, default=DEFAULT_MAX_BATTERY_DISCHARGE_POWER / 1000.0): vol.All(
+            vol.Coerce(float), vol.Range(min=0)
+        ),
         vol.Optional(CONF_SMOOTHING_PERIOD, default=DEFAULT_SMOOTHING_PERIOD): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=300)
         ),
@@ -85,7 +90,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 step_id="user", data_schema=STEP_USER_DATA_SCHEMA
             )
 
-        return self.async_create_entry(title="Solar EV Charger", data=user_input)
+        if user_input is not None:
+            # Convert kW to W for internal storage
+            if CONF_MAX_BATTERY_DISCHARGE_POWER in user_input:
+                user_input[CONF_MAX_BATTERY_DISCHARGE_POWER] = user_input[CONF_MAX_BATTERY_DISCHARGE_POWER] * 1000.0
+            return self.async_create_entry(title="Solar EV Charger", data=user_input)
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
@@ -94,11 +103,19 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
 
         if user_input is not None:
+            # Convert kW to W for internal storage
+            if CONF_MAX_BATTERY_DISCHARGE_POWER in user_input:
+                user_input[CONF_MAX_BATTERY_DISCHARGE_POWER] = user_input[CONF_MAX_BATTERY_DISCHARGE_POWER] * 1000.0
             return self.async_update_reload_and_abort(
                 entry, data={**entry.data, **user_input}
             )
 
-        schema = self.add_suggested_values_to_schema(STEP_USER_DATA_SCHEMA, entry.data)
+        # Convert W to kW for suggested values
+        suggested_values = entry.data.copy()
+        if CONF_MAX_BATTERY_DISCHARGE_POWER in suggested_values:
+            suggested_values[CONF_MAX_BATTERY_DISCHARGE_POWER] = suggested_values[CONF_MAX_BATTERY_DISCHARGE_POWER] / 1000.0
+
+        schema = self.add_suggested_values_to_schema(STEP_USER_DATA_SCHEMA, suggested_values)
 
         return self.async_show_form(
             step_id="reconfigure",

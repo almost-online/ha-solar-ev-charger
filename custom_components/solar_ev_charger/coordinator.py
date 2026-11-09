@@ -32,9 +32,11 @@ from .const import (
     CONF_EV_CHARGER_VOLTAGE,
     CONF_EV_CHARGER_VOLTAGE_ENTITY,
     CONF_MIN_BATTERY_SOC,
+    CONF_MAX_BATTERY_DISCHARGE_POWER,
     CONF_SMOOTHING_PERIOD,
     DEFAULT_VOLTAGE,
     DEFAULT_MIN_BATTERY_SOC,
+    DEFAULT_MAX_BATTERY_DISCHARGE_POWER,
     DEFAULT_SMOOTHING_PERIOD,
 )
 
@@ -75,6 +77,9 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         self.max_current = entry.data[CONF_EV_CHARGER_MAX_CURRENT]
         self.default_voltage = entry.data.get(CONF_EV_CHARGER_VOLTAGE, DEFAULT_VOLTAGE)
         self.min_battery_soc = entry.data.get(CONF_MIN_BATTERY_SOC, DEFAULT_MIN_BATTERY_SOC)
+        self.max_battery_discharge_power = entry.data.get(
+            CONF_MAX_BATTERY_DISCHARGE_POWER, DEFAULT_MAX_BATTERY_DISCHARGE_POWER
+        )
         self.smoothing_period = entry.data.get(CONF_SMOOTHING_PERIOD, DEFAULT_SMOOTHING_PERIOD)
 
         self._last_update_time = datetime.min
@@ -124,6 +129,7 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             "voltage_entity": self.entities["voltage_entity"],
             "max_current": self.max_current,
             "min_battery_soc": self.min_battery_soc,
+            "max_battery_discharge_power": self.max_battery_discharge_power,
             "smoothing_period": self.smoothing_period,
         }
 
@@ -159,6 +165,7 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             return
 
         grid_power = self.get_state_val(self.entities["grid"])
+        consumption_power = self.get_state_val(self.entities["consumption"])
         ev_power = self.get_state_val(self.entities["ev_power"])
         battery_soc = self.get_state_val(self.entities["battery_soc"])
         battery_power = self.get_state_val(self.entities["battery_power"])
@@ -183,24 +190,26 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         # So adding it adds charging power to the pool and adding discharging power (negative) subtracts from the pool.
         raw_available = (-grid_power) + ev_power + battery_power
 
-        # Optional: Battery discharge allowance when SOC > min_battery_soc
-        # discharge_limit = solar_power * (10 + (soc - min_battery_soc)) / 100
-        # This is already implicitly handled by '+ battery_power' in the pool if we allow
-        # the battery to discharge up to this limit. 
-        # However, to strictly follow the user's example where they ADD the allowance:
-        # "total avaliable power will be 2360w" (2000 solar + 360 allowance)
-        # We can cap the contribution of battery_power (discharging) to this allowance.
-        if self.entities["battery_soc"] and battery_soc > self.min_battery_soc:
-            discharge_pct = (10 + (battery_soc - self.min_battery_soc)) / 100
-            discharge_allowance = solar_power * discharge_pct
+        # Apply battery discharge limit for EV charging
+        # If battery is discharging (battery_power < 0), we want to limit how much of that discharge
+        # is used for the EV. 
+        # The user wants to limit battery discharge to max_battery_discharge_power.
+        # Current logic: raw_available = (-grid) + ev_power + battery_power.
+        # If solar=0, consumption=1kW, grid=0.5kW, battery=-0.5kW (discharging), ev_power=0.
+        # Then raw_available = -0.5 + 0 + (-0.5) = -1.0kW.
+        # The equation for available power is essentially: solar_power - consumption_power + battery_discharge_limit
+        # grid_power = consumption_power + ev_power - solar_power - battery_power_discharging
+        # (-grid_power) + ev_power + battery_power = -(consumption + ev - solar - battery_power) + ev + battery_power
+        # = -consumption - ev + solar + battery_power + ev + battery_power = solar - consumption + 2*battery_power? No.
+        
+        # Let's use: raw_available = solar_power - consumption_power + battery_discharge_limit
+        # battery_power in this system: positive=charging, negative=discharging.
+        # So raw_available = solar_power - consumption_power + min(abs(battery_power_discharging), limit) ? No, that's also not quite it.
 
-            # If battery is discharging (batt_p < 0), we only want to 'add' up to allowance
-            # but wait, 'raw_available = (-grid_p) + ev_p + batt_p'
-            # If we are discharging 500W and allowance is 360W:
-            # grid=0, ev=0, batt=-500 -> raw = -500. This is wrong if we want to use some battery.
+        # User example: solar=0.5, consumption=1, limit=2. EV should be max 1.5.
+        # solar - consumption + limit = 0.5 - 1 + 2 = 1.5. Correct!
 
-            # To ALLOW discharge, we should ADD the allowance to the pool:
-            raw_available += discharge_allowance
+        raw_available = solar_power - consumption_power + self.max_battery_discharge_power
 
         total_available_power = self._get_smoothed_power(raw_available)
 

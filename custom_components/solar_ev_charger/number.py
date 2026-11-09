@@ -11,6 +11,7 @@ from .const import (
     DOMAIN,
     CONF_EV_CHARGER_MAX_CURRENT,
     CONF_MIN_BATTERY_SOC,
+    CONF_MAX_BATTERY_DISCHARGE_POWER,
     CONF_SMOOTHING_PERIOD,
 )
 from .coordinator import SolarEVChargerCoordinator
@@ -25,6 +26,7 @@ async def async_setup_entry(
     async_add_entities([
         SolarEVChargerMaxCurrentNumber(coordinator),
         SolarEVChargerMinBatterySOCNumber(coordinator),
+        SolarEVChargerMaxBatteryDischargePowerNumber(coordinator),
         SolarEVChargerSmoothingPeriodNumber(coordinator),
     ])
 
@@ -75,6 +77,37 @@ class SolarEVChargerMinBatterySOCNumber(CoordinatorEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Update the value."""
         self.coordinator.min_battery_soc = value
+        self.async_write_ha_state()
+        await self.coordinator.calculate_and_set_current()
+
+class SolarEVChargerMaxBatteryDischargePowerNumber(CoordinatorEntity, NumberEntity):
+    """Number entity to control max battery discharge power."""
+
+    def __init__(self, coordinator: SolarEVChargerCoordinator) -> None:
+        """Initialize."""
+        super().__init__(coordinator)
+        self._attr_name = "Solar EV Charger Max Battery Discharge Power"
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_max_battery_discharge_power"
+        self._attr_device_info = coordinator.device_info
+        self._attr_native_min_value = 0.0
+        # Dynamically set max value based on max current * voltage
+        voltage = self.coordinator.get_state_val(self.coordinator.entities["voltage_entity"])
+        if voltage <= 0:
+            voltage = float(self.coordinator.default_voltage)
+        
+        self._attr_native_max_value = float(self.coordinator.max_current) * voltage / 1000.0
+        self._attr_native_step = 0.001
+        self._attr_native_unit_of_measurement = "kW"
+        self._attr_device_class = "power"
+
+    @property
+    def native_value(self) -> float:
+        """Return the current value in kW."""
+        return float(self.coordinator.max_battery_discharge_power) / 1000.0
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Update the value."""
+        self.coordinator.max_battery_discharge_power = value * 1000.0
         self.async_write_ha_state()
         await self.coordinator.calculate_and_set_current()
 
