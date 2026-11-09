@@ -1,0 +1,18 @@
+---
+description: Surplus, SOC share, and charger current rules for the coordinator
+globs: custom_components/solar_ev_charger/**/*.py
+alwaysApply: false
+---
+
+# Coordinator changes
+
+- Edit surplus, SOC share, and power smoothing only in `calculate_and_set_current`. Writes to the charger belong to the driver in `charger/` (`custom.py` keeps `_set_charger_current`, `solax.py` switches Fast/Stop).
+- Keep `async_track_state_change_event` on the configured entity ids.
+- New options need a key in `const.py`, the config flow schema (user and reconfigure), both translation files, and a number entity only when the value must be tunable at runtime.
+- Runtime number entities must not be described as persisted. They update coordinator fields until reload.
+- After a behavior change, update `README.md` and `AGENTS.md`, then bump `manifest.json`.
+
+```python
+raw_available = solar_power - consumption_power + self.max_battery_discharge_power
+target_amps = ev_allocated_power / (voltage * phases)  # phases = 1, then math.floor
+```

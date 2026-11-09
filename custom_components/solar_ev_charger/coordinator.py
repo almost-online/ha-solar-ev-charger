@@ -5,19 +5,15 @@ import logging
 import math
 import time
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-# SERVICE_SET_VALUE is not in homeassistant.const in some versions, 
-# and the number component defines it as 'set_value'
-SERVICE_SET_VALUE = "set_value"
-
+from .charger import create_driver
 from .const import (
     DOMAIN,
     DEFAULT_NAME,
@@ -26,22 +22,24 @@ from .const import (
     CONF_GRID_POWER_ENTITY,
     CONF_BATTERY_POWER_ENTITY,
     CONF_BATTERY_SOC_ENTITY,
-    CONF_EV_CHARGER_POWER_ENTITY,
-    CONF_EV_CHARGER_CONTROL_CURRENT_ENTITY,
+    CONF_CHARGER_TYPE,
     CONF_EV_CHARGER_MAX_CURRENT,
     CONF_EV_CHARGER_VOLTAGE,
     CONF_EV_CHARGER_VOLTAGE_ENTITY,
     CONF_MIN_BATTERY_SOC,
+    CONF_MAX_BATTERY_DISCHARGE_POWER,
     CONF_SMOOTHING_PERIOD,
+    DEFAULT_CHARGER_TYPE,
     DEFAULT_VOLTAGE,
     DEFAULT_MIN_BATTERY_SOC,
+    DEFAULT_MAX_BATTERY_DISCHARGE_POWER,
     DEFAULT_SMOOTHING_PERIOD,
+    MIN_CHARGE_AMPS,
 )
 
 # Battery/charger proportions
 HIGH_SHARE_SOC = 0.9  # 10/90%
 LOW_SHARE_SOC = 0.6  # 40/60%
-MIN_CHARGE_AMPS = 6.0  # IEC 61851 minimum standard threshold
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,22 +60,28 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         self.solar_only_mode = True
         self.ignore_battery_charging = False
 
+        self.max_current = entry.data[CONF_EV_CHARGER_MAX_CURRENT]
+        self.default_voltage = entry.data.get(CONF_EV_CHARGER_VOLTAGE, DEFAULT_VOLTAGE)
+        self.min_battery_soc = entry.data.get(CONF_MIN_BATTERY_SOC, DEFAULT_MIN_BATTERY_SOC)
+        self.max_battery_discharge_power = entry.data.get(
+            CONF_MAX_BATTERY_DISCHARGE_POWER, DEFAULT_MAX_BATTERY_DISCHARGE_POWER
+        )
+        self.smoothing_period = entry.data.get(CONF_SMOOTHING_PERIOD, DEFAULT_SMOOTHING_PERIOD)
+
+        self.charger_type = entry.data.get(CONF_CHARGER_TYPE, DEFAULT_CHARGER_TYPE)
+        self.driver = create_driver(self)
+
         self.entities = {
             "solar": entry.data[CONF_SOLAR_POWER_ENTITY],
             "consumption": entry.data[CONF_CONSUMPTION_POWER_ENTITY],
             "grid": entry.data[CONF_GRID_POWER_ENTITY],
             "battery_power": entry.data.get(CONF_BATTERY_POWER_ENTITY),
             "battery_soc": entry.data.get(CONF_BATTERY_SOC_ENTITY),
-            "ev_power": entry.data[CONF_EV_CHARGER_POWER_ENTITY],
-            "ev_control": entry.data[CONF_EV_CHARGER_CONTROL_CURRENT_ENTITY],
-            "voltage_entity": entry.data.get(CONF_EV_CHARGER_VOLTAGE_ENTITY),
+            "ev_power": self.driver.power_entity,
+            "voltage_entity": entry.data.get(CONF_EV_CHARGER_VOLTAGE_ENTITY)
+            or self.driver.voltage_entity,
         }
-        self.max_current = entry.data[CONF_EV_CHARGER_MAX_CURRENT]
-        self.default_voltage = entry.data.get(CONF_EV_CHARGER_VOLTAGE, DEFAULT_VOLTAGE)
-        self.min_battery_soc = entry.data.get(CONF_MIN_BATTERY_SOC, DEFAULT_MIN_BATTERY_SOC)
-        self.smoothing_period = entry.data.get(CONF_SMOOTHING_PERIOD, DEFAULT_SMOOTHING_PERIOD)
 
-        self._last_update_time = datetime.min
         self._power_history = deque()
 
         self.device_info = DeviceInfo(
@@ -88,11 +92,11 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         )
 
         # Track state changes
-        for entity_id in self.entities.values():
-            if entity_id:
-                async_track_state_change_event(
-                    self.hass, [entity_id], self._async_handle_state_change
-                )
+        tracked = {e for e in (*self.entities.values(), *self.driver.tracked_entities) if e}
+        for entity_id in tracked:
+            async_track_state_change_event(
+                self.hass, [entity_id], self._async_handle_state_change
+            )
 
     @callback
     def _async_handle_state_change(self, event):
@@ -124,7 +128,10 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             "voltage_entity": self.entities["voltage_entity"],
             "max_current": self.max_current,
             "min_battery_soc": self.min_battery_soc,
+            "max_battery_discharge_power": self.max_battery_discharge_power,
             "smoothing_period": self.smoothing_period,
+            "charger_type": self.charger_type,
+            **self.driver.extra_attributes,
         }
 
     def get_state_val(self, entity_id: str) -> float:
@@ -159,16 +166,24 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             return
 
         grid_power = self.get_state_val(self.entities["grid"])
+        consumption_power = self.get_state_val(self.entities["consumption"])
         ev_power = self.get_state_val(self.entities["ev_power"])
         battery_soc = self.get_state_val(self.entities["battery_soc"])
         battery_power = self.get_state_val(self.entities["battery_power"])
         solar_power = self.get_state_val(self.entities["solar"])
 
+        soc_for_driver = battery_soc if self.entities["battery_soc"] else None
+        power_for_driver = battery_power if self.entities["battery_power"] else None
+
         # 1. Hard cutoff guardrail: If battery is strictly below minimum config, KILL EV charging
-        if self.entities["battery_soc"] and battery_soc < self.min_battery_soc:
+        if (
+            self.driver.stop_below_min_soc
+            and self.entities["battery_soc"]
+            and battery_soc < self.min_battery_soc
+        ):
             _LOGGER.debug("Battery SOC %s < %s. Stopping EV charging.", battery_soc,
                           self.min_battery_soc)
-            await self._set_charger_current(0)
+            await self.driver.async_apply(0, soc_for_driver, power_for_driver)
             return
 
         # 2. Determine voltage dynamically or fall back to default configuration
@@ -183,24 +198,26 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
         # So adding it adds charging power to the pool and adding discharging power (negative) subtracts from the pool.
         raw_available = (-grid_power) + ev_power + battery_power
 
-        # Optional: Battery discharge allowance when SOC > min_battery_soc
-        # discharge_limit = solar_power * (10 + (soc - min_battery_soc)) / 100
-        # This is already implicitly handled by '+ battery_power' in the pool if we allow
-        # the battery to discharge up to this limit. 
-        # However, to strictly follow the user's example where they ADD the allowance:
-        # "total avaliable power will be 2360w" (2000 solar + 360 allowance)
-        # We can cap the contribution of battery_power (discharging) to this allowance.
-        if self.entities["battery_soc"] and battery_soc > self.min_battery_soc:
-            discharge_pct = (10 + (battery_soc - self.min_battery_soc)) / 100
-            discharge_allowance = solar_power * discharge_pct
+        # Apply battery discharge limit for EV charging
+        # If battery is discharging (battery_power < 0), we want to limit how much of that discharge
+        # is used for the EV. 
+        # The user wants to limit battery discharge to max_battery_discharge_power.
+        # Current logic: raw_available = (-grid) + ev_power + battery_power.
+        # If solar=0, consumption=1kW, grid=0.5kW, battery=-0.5kW (discharging), ev_power=0.
+        # Then raw_available = -0.5 + 0 + (-0.5) = -1.0kW.
+        # The equation for available power is essentially: solar_power - consumption_power + battery_discharge_limit
+        # grid_power = consumption_power + ev_power - solar_power - battery_power_discharging
+        # (-grid_power) + ev_power + battery_power = -(consumption + ev - solar - battery_power) + ev + battery_power
+        # = -consumption - ev + solar + battery_power + ev + battery_power = solar - consumption + 2*battery_power? No.
+        
+        # Let's use: raw_available = solar_power - consumption_power + battery_discharge_limit
+        # battery_power in this system: positive=charging, negative=discharging.
+        # So raw_available = solar_power - consumption_power + min(abs(battery_power_discharging), limit) ? No, that's also not quite it.
 
-            # If battery is discharging (batt_p < 0), we only want to 'add' up to allowance
-            # but wait, 'raw_available = (-grid_p) + ev_p + batt_p'
-            # If we are discharging 500W and allowance is 360W:
-            # grid=0, ev=0, batt=-500 -> raw = -500. This is wrong if we want to use some battery.
+        # User example: solar=0.5, consumption=1, limit=2. EV should be max 1.5.
+        # solar - consumption + limit = 0.5 - 1 + 2 = 1.5. Correct!
 
-            # To ALLOW discharge, we should ADD the allowance to the pool:
-            raw_available += discharge_allowance
+        raw_available = solar_power - consumption_power + self.max_battery_discharge_power
 
         total_available_power = self._get_smoothed_power(raw_available)
 
@@ -239,49 +256,4 @@ class SolarEVChargerCoordinator(DataUpdateCoordinator):
             # Use math.floor to be safe and slightly conservative against grid pulling
             new_control_amps = float(math.floor(target_amps))
 
-        await self._set_charger_current(new_control_amps, battery_soc)
-
-    async def _set_charger_current(self, new_setpoint: float, battery_soc: float | None = None):
-        """Set the charger current with smoothing and deadband logic."""
-        control_entity = self.entities["ev_control"]
-        current_setpoint = self.get_state_val(control_entity)
-
-        now = datetime.now()
-        time_diff = (now - self._last_update_time).total_seconds()
-
-        # Immediate stop or start from zero ignores smoothing period
-        is_immediate = (new_setpoint == 0 and current_setpoint > 0) or (
-                new_setpoint > 0 and current_setpoint == 0)
-
-        if not is_immediate and time_diff < self.smoothing_period:
-            _LOGGER.debug("Smoothing: skipping update. Last update was %s seconds ago.", time_diff)
-            return
-
-        # Apply 0.5A deadband unless it's a start/stop
-        if not is_immediate and abs(new_setpoint - current_setpoint) <= 0.5:
-            return
-
-        if new_setpoint <= 0:
-            new_setpoint = MIN_CHARGE_AMPS
-
-        _LOGGER.info("Adjusting EV charger current from %s to %s (SOC: %s%%)",
-                     current_setpoint, new_setpoint, battery_soc)
-        self._last_update_time = now
-        try:
-            await self.hass.services.async_call(
-                "number",
-                SERVICE_SET_VALUE,
-                {
-                    ATTR_ENTITY_ID: control_entity,
-                    "value": round(new_setpoint, 1),
-                },
-                blocking=True,
-            )
-        except Exception as err:
-            if new_setpoint == 0:
-                _LOGGER.debug("Failed to set charger current to 0, "
-                              "it might not be supported by the entity: %s", err)
-            else:
-                _LOGGER.error("Error setting charger current: %s", err)
-
-            await self._set_charger_current(MIN_CHARGE_AMPS, battery_soc)
+        await self.driver.async_apply(new_control_amps, soc_for_driver, power_for_driver)

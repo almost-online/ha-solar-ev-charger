@@ -8,12 +8,12 @@
           "grid_power_entity": "Grid Power Entity (Export is positive)",
           "battery_power_entity": "Battery Power Entity (Charging is positive)",
           "battery_soc_entity": "Battery SOC Entity",
-          "ev_charger_power_entity": "EV Charger Power Entity",
-          "ev_charger_control_current_entity": "EV Charger Control Current Entity (Number)",
+          "charger_type": "EV Charger Type",
           "ev_charger_max_current": "Max Current for Charging (Amps)",
-          "ev_charger_voltage_entity": "EV Charger Voltage Entity (Optional)",
+          "ev_charger_voltage_entity": "EV Charger Voltage Entity (Optional, Solax uses its own when empty)",
           "ev_charger_voltage": "EV Charger Voltage (Raw value, default 230)",
           "min_battery_soc": "Minimum Battery SOC to start EV charging (%)",
+          "max_battery_discharge_power": "Max Battery Discharge Power for EV (kW)",
           "smoothing_period": "Smoothing Period - Seconds to wait between charging speed changes"
         },
         "description": "Configure the entities for Solar EV Charging control."
@@ -25,22 +25,46 @@
           "grid_power_entity": "Grid Power Entity (Export is positive)",
           "battery_power_entity": "Battery Power Entity (Charging is positive)",
           "battery_soc_entity": "Battery SOC Entity",
-          "ev_charger_power_entity": "EV Charger Power Entity",
-          "ev_charger_control_current_entity": "EV Charger Control Current Entity (Number)",
+          "charger_type": "EV Charger Type",
           "ev_charger_max_current": "Max Current for Charging (Amps)",
-          "ev_charger_voltage_entity": "EV Charger Voltage Entity (Optional)",
+          "ev_charger_voltage_entity": "EV Charger Voltage Entity (Optional, Solax uses its own when empty)",
           "ev_charger_voltage": "EV Charger Voltage (Raw value, default 230)",
           "min_battery_soc": "Minimum Battery SOC to start EV charging (%)",
+          "max_battery_discharge_power": "Max Battery Discharge Power for EV (kW)",
           "smoothing_period": "Smoothing Period - Seconds to wait between charging speed changes"
         },
         "description": "Update the entities for Solar EV Charging control."
+      },
+      "custom": {
+        "data": {
+          "ev_charger_power_entity": "EV Charger Power Entity",
+          "ev_charger_control_current_entity": "EV Charger Control Current Entity (Number)"
+        },
+        "description": "Select the charger power sensor and the number entity that sets its current."
+      },
+      "solax_modbus": {
+        "data": {
+          "charger_device": "Solax EV Charger Device"
+        },
+        "description": "Select the EV charger device from the Solax ModBus integration. The integration switches Charger Use Mode to Fast to charge and to Stop when solar is not enough."
       }
     },
-    "entity": {
-      "switch": {
-        "ignore_battery_charging": {
-          "name": "Ignore Battery Charging"
-        }
+    "error": {
+      "solax_entities_not_found": "This device has no Charger Use Mode select or Charge Current number from Solax ModBus."
+    }
+  },
+  "selector": {
+    "charger_type": {
+      "options": {
+        "solax_modbus": "Solax ModBus integration",
+        "custom": "Custom"
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "ignore_battery_charging": {
+        "name": "Ignore Battery Charging"
       }
     }
   }

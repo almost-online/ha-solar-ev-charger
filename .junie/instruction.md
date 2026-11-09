@@ -1,92 +1,43 @@
 # AI Agent Instruction: Solar EV Charger Integration
 
-You are an AI agent tasked with maintaining, improving, or troubleshooting the "Solar EV Charger" Home Assistant integration. This integration is designed to optimize EV charging by using surplus solar power.
+Maintain the Solar EV Charger Home Assistant integration (`solar_ev_charger`). Cursor agents also follow `AGENTS.md` at the repo root. If this file and `AGENTS.md` disagree, follow `AGENTS.md` and the code.
 
-## Project Context
-- **Name**: Solar EV Charger
-- **Domain**: `solar_ev_charger`
-- **Type**: Home Assistant HACS Integration
-- **Purpose**: Controls an EV charger's current (via a `number` entity) based on grid export and battery power to ensure only solar energy is used for charging.
+## Purpose
 
-## Key Logic (coordinator.py)
-- **Surplus Calculation**: 
-  - `total_available_power = (-grid_power) + ev_power - battery_power` (smoothed over `smoothing_period`).
-  - This pool represents all available physical power, treating battery charging as available capacity and battery discharging as consumption.
-  - **Battery Discharge Allowance**: If SOC > `min_battery_soc`, an additional allowance is added to the pool: `allowance = solar_power * (10 + (soc - min_battery_soc)) / 100`.
-- **Battery SOC Logic**:
-  - If SOC < `min_battery_soc`, EV charging is stopped (0A).
-  - If SOC >= `min_battery_soc`, available power (including allowance) is split between battery and EV.
-  - EV share scales linearly:
-    - 60% at `min_battery_soc`
-    - 90% at 95% SOC and above.
-  - **Ignore Battery Mode**:
-    - When `ignore_battery_charging` is enabled, `ev_share` is set to 100% (1.0).
-    - This prioritizes EV charging by using the power that would otherwise go to the battery.
-- **Smoothing/Damping**:
-  - `smoothing_period`: A rolling average of the raw available power is calculated over this duration.
-  - Current adjustments (except for immediate start/stop) are delayed by this period.
-  - A 0.5A deadband is applied to avoid small fluctuations.
-  - Immediate stop (to 0A) or start (from 0A) bypasses the smoothing period.
-- **Current Adjustment**:
-  - `target_amps = (total_available_power * ev_share) / (voltage * phases)`
-  - Uses `math.floor` for conservative current setting.
-  - Minimum charging threshold is 6.0A (IEC 61851).
-  - Power threshold: If `ev_allocated_power < 3A * voltage`, charging stops.
-  - The integration adjusts the `ev_charger_control_current_entity`.
+Set the EV charger current (`number` entity) from solar surplus and a battery-discharge allowance.
 
-## Configured Entities (via Config Flow)
-- `solar_power_entity`: Total solar production.
-- `consumption_power_entity`: Total house consumption.
-- `grid_power_entity`: Grid export (positive) / import (negative).
-- `battery_power_entity`: Battery charge (positive) / discharge (negative).
-- `battery_soc_entity`: Battery state of charge.
-- `ev_charger_power_entity`: Current power used by the EV charger.
-- `ev_charger_control_current_entity`: The `number` entity used to set the charging current.
-- `ev_charger_max_current`: User-defined limit for the charging current.
-- `ev_charger_voltage_entity`: (Optional) Entity providing real-time voltage.
-- `ev_charger_voltage`: (Optional) Fixed voltage value (default 230).
-- `min_battery_soc`: (Optional) Minimal SOC to start EV charging (default 90).
-- `battery_soc_guardrail`: (Optional) SOC threshold to prioritize house battery (default 50).
-- `smoothing_period`: (Optional) Seconds to wait between current adjustments (default 30).
+## Logic (`coordinator.py`)
 
-## Codebase Structure
-- `__init__.py`: Integration setup and platform forwarding.
-- `config_flow.py`: UI configuration handler.
-- `const.py`: Shared constants.
-- `coordinator.py`: The "brain" - contains the logic for surplus calculation and charger control. Also manages `device_info`.
-- `sensor.py`: Provides a status sensor (Disabled, Manual, Solar Only). Associated with the integration device.
-- `switch.py`: Provides switches to Enable/Disable the integration and toggle Solar Only mode. Associated with the integration device.
-- `manifest.json`: Integration metadata.
+The running surplus formula is the last assignment:
 
-## UI Component (Custom Card)
-- **Custom Card**: `solar-ev-charger-card.js`
-- **Location**: `custom_components/solar_ev_charger/www/`
-- **Registration**: 
-  - Registered as a static path `/{DOMAIN}/www` in `__init__.py`.
-  - Programmatically registered as a Lovelace resource in `async_setup_entry` via `getattr(hass.data.get("lovelace"), "resources", None)`.
-- **Usage**:
-  - The card uses the `Solar EV Charger Status` sensor entity.
-  - The sensor's `extra_state_attributes` provide the real-time power data for the diagram.
-  - Data points: `solar`, `grid`, `consumption`, `battery_power`, `battery_soc`, `ev_power`.
-- **Dashboard Blueprint**: `dashboard.yaml` provides a pre-made dashboard configuration using the custom card.
-- **Dashboard Strategy**: `solar-ev-charger-card.js` includes a `SolarEVChargerDashboardStrategy` that allows Home Assistant to auto-generate a full dashboard for the integration.
+`raw_available = solar_power - consumption_power + max_battery_discharge_power`
 
-## Instructions for AI Tasks
-1. **Adding Features**:
-   - If adding support for 3-phase charging, update the `calculate_and_set_current` logic in `coordinator.py` and potentially add a config option in `config_flow.py`.
-   - If adding a minimum SOC requirement for the battery, update `coordinator.py`.
-   - To improve the UI card, edit `custom_components/solar_ev_charger/www/solar-ev-charger-card.js`.
-2. **Bug Fixing**:
-   - Check the unit of measurement for power entities (assumed Watts).
-   - Ensure `voltage` and `phases` assumptions match the user's hardware.
-3. **Refactoring**:
-   - Keep the logic centralized in the `SolarEVChargerCoordinator`.
-   - Maintain the use of `async_track_state_change_event` for reactive updates.
+Comments above that line describe an older `(-grid) + ev + battery` equation. That equation is not executed. Grid export is positive. Battery charging is positive. Both are for the energy-flow card only.
 
-## Versioning Rule
-- Always update the version in `manifest.json` after any code change.
-- Use semantic versioning:
-  - **Patch** (1.2.x): For backwards-compatible bug fixes.
-  - **Minor** (1.x.0): For new features that are backwards-compatible.
-  - **Major** (x.0.0): For incompatible API changes or major overhauls.
-- Ensure the version is bumped before submitting changes.
+- Smooth `raw_available` over `smoothing_period`.
+- SOC < `min_battery_soc`: call `_set_charger_current(0)` and return.
+- `ignore_battery_charging`, or no SOC: `ev_share = 1.0`.
+- SOC at the minimum: `ev_share = 0.6`. At or above `(100 + min_battery_soc) / 2`: `ev_share = 0.9`.
+- The branch between those points uses `max(linear_share, 1)`, so the share becomes `1.0` there.
+- `target_amps = floor(smoothed * ev_share / (voltage * phases))` with `phases = 1`.
+- Below 6 A the target is 0. Above max current it is clamped.
+- `_set_charger_current` currently rewrites a setpoint `<= 0` to 6 A before `number.set_value`. A stop therefore sends 6 A. Do not treat that as the design unless the task is to change it.
+- Wait `smoothing_period` between changes. A 0.5 A deadband applies. Start from 0 A and stop to 0 A skip the wait.
+
+## Config and entities
+
+See `const.py` and `config_flow.py`. Discharge power is kW in the form and watts in the entry. Number entities (`number.py`) change coordinator memory only. Switches: Enabled, Solar Only, Ignore Battery Charging. Status sensor: Disabled, Manual, Priority EV, Solar Only.
+
+## Files
+
+`__init__.py` setup and Lovelace resource. `sensor.py`, `switch.py`, `number.py` platforms. Card: `custom_components/solar_ev_charger/www/solar-ev-charger-card.js`. Blueprint: `dashboard.yaml`.
+
+Keep math in `SolarEVChargerCoordinator`. Keep `async_track_state_change_event`.
+
+## Versioning
+
+Bump `manifest.json` after any integration code change. Patch for fixes, minor for compatible features, major for breaking changes.
+
+## Live systems
+
+Use MCP `home-assistant` (`/api/mcp/homeassistant`) from `~/.cursor/mcp.json`. Do not commit tokens. Do not call charger write actions unless the user asked. ESPHome is not used by this integration.
